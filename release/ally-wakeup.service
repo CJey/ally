@@ -1,0 +1,13 @@
+[Unit]
+Description=Wakeup Ally
+Wants=network.target network-online.target
+After=network.target network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemd-run --scope /bin/ally wakeup
+KillMode=mixed
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

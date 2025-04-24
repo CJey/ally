@@ -1,0 +1,193 @@
+syntax="proto3";
+
+package xiao.ally;
+option go_package=".;proto";
+
+// KV: github.com/cockroachdb/pebble
+//    mem
+//    persistent file path
+
+// SQL: modernc.org/ql
+//    mem
+//    persistent file path
+
+service Ally {
+    rpc ListenSocket(ListenSocketRequest)   returns (ListenSocketResponse);
+    rpc CloseSocket(CloseSocketRequest)     returns (CloseSocketResponse);
+
+    rpc ReloadApp(ReloadAppRequest)         returns (ReloadAppResponse);
+    rpc Heartbeat(HeartbeatRequest)         returns (HeartbeatResponse);
+
+    rpc GetAppInfo(GetAppInfoRequest)           returns (GetAppInfoResponse);
+    rpc GetInstanceInfo(GetInstanceInfoRequest) returns (GetInstanceInfoResponse);
+}
+
+message ListenSocketRequest {
+    string network = 1;
+    string address = 2;
+}
+
+message ListenSocketResponse {
+    enum Code {
+        EC_OK          = 0;
+        EC_PERMISSION  = 1; // 仅允许app实例访问此接口
+        EC_BAD_ADDRESS = 2; // 地址格式问题
+        EC_LISTEN      = 3; // listen失败
+        EC_SEND        = 4; // 发送fd给app失败
+    }
+    Code   code  = 1;
+    string error = 2;
+}
+
+message CloseSocketRequest {
+    string network = 1;
+    string address = 2;
+}
+
+message CloseSocketResponse {
+    enum Code {
+        EC_OK          = 0;
+        EC_PERMISSION  = 1; // 仅允许app实例访问此接口
+        EC_BAD_ADDRESS = 2; // 地址格式问题
+    }
+    Code   code  = 1;
+    string error = 2;
+}
+
+message ReloadAppRequest {
+}
+
+message ReloadAppResponse {
+    enum Code {
+        EC_OK          = 0;
+        EC_PERMISSION  = 1; // 仅允许最新app实例访问此接口
+        EC_RELOAD      = 2;
+    }
+    Code   code  = 1;
+    string error = 2;
+}
+
+message HeartbeatRequest {
+    bool   ready       = 1;
+    uint64 tasks       = 2;
+    string commit      = 3;
+    string version     = 4;
+    string description = 5;
+}
+
+message HeartbeatResponse {
+    enum Code {
+        EC_OK          = 0;
+        EC_PERMISSION  = 1; // 仅允许app实例访问此接口
+    }
+    Code   code  = 1;
+    string error = 2;
+}
+
+message InstanceStat {
+    enum Enum {
+        PREPARING = 0;
+        RUNNING   = 1;
+        CLOSING   = 2;
+    }
+}
+
+message AppStat {
+    enum Enum {
+        STOPPED    = 0;
+        BOOTING1   = 1; // 刚在boot
+        BOOTING2   = 2; // main启动了，但尚未ready
+        RUNNING    = 3;
+        CLOSING    = 4;
+        RELOADING1 = 5; // main在，进行booting
+        RELOADING2 = 6; // 新main启动了，但尚未ready
+        RELOADING3 = 7; // 新main已经ready，但是还有旧实例没结束
+        RECOVERING = 8; // main没有，且不是第一次boot
+    }
+}
+
+message Address {
+    string network = 1; // 网络名称
+    string address = 2; // 地址值
+
+    uint64 refs    = 3; // 引用计数
+    int64  created = 4; // 首次被引用时间戳(纳秒)
+    int64  updated = 5; // 最后被引用、解除引用的时间戳(纳秒)
+}
+
+message InstanceInfo {
+    uint64 id         = 1; // app实例的id序列，总是从1开始，每次reload递增1
+    uint64 pid        = 2; // app实例的pid
+    double cpu        = 3; // app实例的cpu实时使用率
+    double ram        = 4; // app实例的内存实时使用量，Bytes
+    string appname    = 5; // app的名称
+    string family     = 6; // app的家族
+    int64  start_time = 7; // app实例的启动时间戳(纳秒)
+
+    uint64 tasks       = 8; // app实例上报不可中断的任务数量
+    string commit      = 9; // app实例上报的版本commit
+    string version     = 10; // app实例上报的版本号
+    string description = 11; // app实例上报的动态描述文字
+
+    InstanceStat.Enum stat      = 12; // app实例的状态
+    repeated Address  addresses = 13; // app实例在使用中的地址
+}
+
+// 获取本实例的信息
+message GetInstanceInfoRequest {
+}
+
+message GetInstanceInfoResponse {
+    enum Code {
+        EC_OK          = 0;
+        EC_PERMISSION  = 1; // 仅允许app实例访问此接口
+    }
+    Code   code  = 1;
+    string error = 2;
+
+    InstanceInfo info = 3;
+}
+
+message AppInfo {
+    // config info
+    string name          = 1;  // app名称
+    string family        = 2;  // app所属家族
+    string bin           = 3;  // app binary全路径
+    string pwd           = 4;  // app的工作目录
+    string path          = 5;  // app的工作PATH
+    uint64 crash_wait    = 6;  // app crash后是否自动拉起，以及拉起的间隔时长(毫秒)，值为0表示不自动拉起
+    repeated string args = 7;  // app的启动参数表
+    repeated string envs = 8;  // app启动时的额外环境变量值，VAR=VAL
+    string user          = 15; // app启动时应当使用的用户id或name
+    string group         = 16; // app启动时应当使用的用户组id或name
+
+    // running info
+    uint64 main          = 9;  // 主实例的id
+    int64  start_time    = 10; // app首次的启动时间戳(纳秒)，即id=1的实例启动时间
+    string last_error    = 11; // 如果主实例运行失败或拉起失败，则记录最后一次拉起失败或主实例运行失败的错误信息
+
+    AppStat.Enum     stat      = 12; // app的状态
+    repeated Address addresses = 13; // app关联的全部地址
+
+    // instances info
+    repeated InstanceInfo instances = 14; // 所有实例信息
+
+    bool enable    = 100; // bypass, 标记是否需要在ally wakeup时启动，此值恒为false
+    bool ephemeral = 101; // bypass, 标记是否是临时app（未被invite），此值恒为true
+
+}
+
+message GetAppInfoRequest {
+}
+
+message GetAppInfoResponse {
+    uint64 pid        = 1; // ally的pid
+    double cpu        = 2; // ally的cpu实时使用率
+    double ram        = 3; // ally的内存实时使用量，Bytes
+    string sock       = 4; // ally sock的路径
+    string commit     = 5; // ally的版本commit信息
+    string version    = 6; // ally的版本号
+    int64  start_time = 7; // ally的启动时间戳(纳秒)
+
+    AppInfo info      = 8;  // app信息
+}

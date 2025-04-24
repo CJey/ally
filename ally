@@ -1,0 +1,12 @@
+#! /bin/sh
+_ROOT="$(pwd)" && ROOT=$(cd "$(dirname "$0")" && pwd)
+
+APPNAME="$(basename "$0")"
+TARGET="$ROOT/bin/$APPNAME"
+
+export MAINFILE="$ROOT/cmd/ally/*.go"
+# disable optimization, useful for dlv debugging
+export DEVELOP=1
+
+# build && run
+"$ROOT/release/build" "$APPNAME" "$TARGET" && "$TARGET" $*

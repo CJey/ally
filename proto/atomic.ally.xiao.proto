@@ -1,0 +1,52 @@
+syntax="proto3";
+
+package xiao.ally;
+option go_package=".;proto";
+
+service Atomic {
+    rpc AtomicAdd(AtomicAddRequest)     returns (AtomicAddResponse);
+    rpc AtomicLoad(AtomicLoadRequest)   returns (AtomicLoadResponse);
+    rpc AtomicStore(AtomicStoreRequest) returns (AtomicStoreResponse);
+    rpc AtomicSwap(AtomicSwapRequest)   returns (AtomicSwapResponse);
+
+    rpc AtomicCompareAndSwap(AtomicCompareAndSwapRequest) returns (AtomicCompareAndSwapResponse);
+}
+
+message AtomicAddRequest {
+    string name  = 1;
+    int64  delta = 2;
+}
+message AtomicAddResponse {
+    int64 val = 1;
+}
+
+message AtomicCompareAndSwapRequest {
+    string name = 1;
+    int64  old  = 2;
+    int64  new  = 3;
+}
+message AtomicCompareAndSwapResponse {
+    bool swapped = 1;
+}
+
+message AtomicLoadRequest {
+    string name = 1;
+}
+message AtomicLoadResponse {
+    int64 val = 1;
+}
+
+message AtomicStoreRequest {
+    string name = 1;
+    int64  val  = 2;
+}
+message AtomicStoreResponse {
+}
+
+message AtomicSwapRequest {
+    string name = 1;
+    int64  new  = 2;
+}
+message AtomicSwapResponse {
+    int64 old = 1;
+}

@@ -1,0 +1,77 @@
+syntax="proto3";
+
+package xiao.ally;
+option go_package=".;proto";
+
+// github.com/patrickmn/go-cache
+service Cache {
+    rpc CacheSet(CacheSetRequest) returns (CacheSetResponse);
+    rpc CacheGet(CacheGetRequest) returns (CacheGetResponse);
+    rpc CacheDel(CacheDelRequest) returns (CacheDelResponse);
+
+    rpc CacheKeys(CacheKeysRequest)     returns (CacheKeysResponse);
+    rpc CacheCount(CacheCountRequest)   returns (CacheCountResponse);
+    rpc CacheItems(CacheItemsRequest)   returns (CacheItemsResponse);
+    rpc CacheFlush(CacheFlushRequest)   returns (CacheFlushResponse);
+    rpc CacheExists(CacheExistsRequest) returns (CacheExistsResponse);
+}
+
+message CacheSetRequest {
+    string ns  = 1;
+    string key = 2;
+    uint64 ttl = 3; // ms
+    bytes  val = 4;
+}
+message CacheSetResponse {
+}
+
+message CacheGetRequest {
+    string ns  = 1;
+    string key = 2;
+}
+message CacheGetResponse {
+    bool  found = 1;
+    bytes val   = 2;
+}
+
+message CacheDelRequest {
+    string ns  = 1;
+    string key = 2;
+}
+message CacheDelResponse {
+}
+
+message CacheKeysRequest {
+    string ns = 1;
+}
+message CacheKeysResponse {
+    repeated string keys = 1;
+}
+
+message CacheCountRequest {
+    string ns = 1;
+}
+message CacheCountResponse {
+    uint64 count = 1;
+}
+
+message CacheItemsRequest {
+    string ns = 1;
+}
+message CacheItemsResponse {
+    map<string, bytes> items = 1;
+}
+
+message CacheFlushRequest {
+    string ns = 1;
+}
+message CacheFlushResponse {
+}
+
+message CacheExistsRequest {
+    string ns  = 1;
+    string key = 2;
+}
+message CacheExistsResponse {
+    bool  found = 1;
+}

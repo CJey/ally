@@ -1,0 +1,64 @@
+syntax="proto3";
+
+package xiao.ally;
+option go_package=".;proto";
+
+service Locker {
+    rpc LockerLock(LockerLockRequest)         returns (LockerLockResponse);
+    rpc LockerRLock(LockerRLockRequest)       returns (LockerRLockResponse);
+    rpc LockerTryLock(LockerTryLockRequest)   returns (LockerTryLockResponse);
+    rpc LockerTryRLock(LockerTryRLockRequest) returns (LockerTryRLockResponse);
+
+    rpc LockerUnlock(LockerUnlockRequest)     returns (LockerUnlockResponse);
+    rpc LockerRUnlock(LockerRUnlockRequest)   returns (LockerRUnlockResponse);
+
+    rpc LockerQueues(LockerQueuesRequest)     returns (LockerQueuesResponse);
+}
+
+message LockerLockRequest {
+    string name = 1;
+}
+message LockerLockResponse {
+}
+
+message LockerRLockRequest {
+    string name = 1;
+}
+message LockerRLockResponse {
+}
+
+message LockerTryLockRequest {
+    string name    = 1;
+    uint64 timeout = 2; // ms
+}
+message LockerTryLockResponse {
+    bool acquired = 1;
+}
+
+message LockerTryRLockRequest {
+    string name    = 1;
+    uint64 timeout = 2; // ms
+}
+message LockerTryRLockResponse {
+    bool acquired = 1;
+}
+
+message LockerUnlockRequest {
+    string name = 1;
+}
+message LockerUnlockResponse {
+}
+
+message LockerRUnlockRequest {
+    string name = 1;
+}
+message LockerRUnlockResponse {
+}
+
+message LockerQueuesRequest {
+    string name = 1;
+}
+message LockerQueuesResponse {
+    int64 r = 1;
+    int64 w = 2;
+}
