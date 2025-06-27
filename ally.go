@@ -9,7 +9,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sync"
-	"syscall"
 	"time"
 
 	"google.golang.org/grpc"
@@ -161,11 +160,12 @@ func recvFd() {
 
 func watchSignal() {
 	chsig := make(chan os.Signal, 3)
-	signal.Notify(chsig, syscall.SIGUSR2, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM)
+	reload, sigs := keySignals()
+	signal.Notify(chsig, sigs...)
 	for {
 		select {
 		case sig := <-chsig:
-			if sig == syscall.SIGUSR2 {
+			if sig == reload {
 				ReloadApp()
 				continue
 			}
