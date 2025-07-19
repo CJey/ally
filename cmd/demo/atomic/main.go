@@ -20,5 +20,5 @@ func main() {
 	fmt.Printf("add 1, result is %d\n", num.Add(1))
 	fmt.Printf("add 1, result is %d\n", num.Add(1))
 
-	<-done.Yes
+	<-done.Yes()
 }

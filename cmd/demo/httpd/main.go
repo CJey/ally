@@ -48,7 +48,7 @@ func main() {
 	ally.Ready()
 
 	fmt.Printf("%s[%d]: Runing at tcp://%s\n", ally.Appname, ally.ID, lsn.Addr().String())
-	<-done.Yes
+	<-done.Yes()
 }
 
 func Handler(resp http.ResponseWriter, req *http.Request) {

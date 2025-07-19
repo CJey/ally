@@ -40,7 +40,7 @@ func main1() {
 	//Bench2()
 
 	done := ally.NewEvent()
-	<-done.Yes
+	<-done.Yes()
 }
 
 func main2() {
@@ -61,7 +61,7 @@ func main2() {
 	//	time.Sleep(time.Second)
 	//}
 
-	<-done.Yes
+	<-done.Yes()
 }
 
 func RW() {

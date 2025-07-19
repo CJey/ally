@@ -36,7 +36,7 @@ func main() {
 	BenchGet(threads, loops)
 	BenchDel(threads, loops)
 
-	<-done.Yes
+	<-done.Yes()
 }
 
 func Verify() {
