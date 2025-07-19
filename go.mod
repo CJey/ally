@@ -1,6 +1,6 @@
 module github.com/cjey/ally
 
-go 1.24.4
+go 1.24.5
 
 require (
 	github.com/cjey/debpkg v1.0.3
@@ -12,7 +12,7 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/spf13/cobra v1.9.1
 	github.com/struCoder/pidusage v0.2.1
-	golang.org/x/sys v0.33.0
+	golang.org/x/sys v0.34.0
 	google.golang.org/grpc v1.73.0
 	google.golang.org/protobuf v1.36.6
 )
