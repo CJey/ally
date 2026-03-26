@@ -105,13 +105,13 @@ func StartApp(app *pb.GetAppInfoResponse) error {
 	}
 
 	sock := fmt.Sprintf("%s/%d.sock", SocksPath, cmd.Process.Pid)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		time.Sleep(10 * time.Millisecond)
 		if _, err := GetAllyAppInfo(sock); err == nil {
 			return nil
 		}
 	}
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		time.Sleep(100 * time.Millisecond)
 		if _, err := GetAllyAppInfo(sock); err == nil {
 			return nil

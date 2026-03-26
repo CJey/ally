@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/kballard/go-shellquote"
@@ -106,14 +107,14 @@ func statusApp(apps []*pb.GetAppInfoResponse) {
 	t.AppendSeparator()
 
 	if app.Pid != 0 {
-		addrs := ""
+		var addrs strings.Builder
 		for i, addr := range app.Info.Addresses {
 			if i > 0 {
-				addrs += fmt.Sprintf(", ")
+				addrs.WriteString(fmt.Sprintf(", "))
 			}
-			addrs += fmt.Sprintf("%s://%s", addr.Network, addr.Address)
+			addrs.WriteString(fmt.Sprintf("%s://%s", addr.Network, addr.Address))
 		}
-		t.AppendRow(table.Row{"Listen", addrs})
+		t.AppendRow(table.Row{"Listen", addrs.String()})
 		t.AppendSeparator()
 
 		t.AppendRow(table.Row{"Stdout", fmt.Sprintf("%s/%s.log", LogsPath, app.Info.Name)})

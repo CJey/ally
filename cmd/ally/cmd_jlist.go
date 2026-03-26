@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 
 	"github.com/kballard/go-shellquote"
 	"github.com/spf13/cobra"
@@ -47,11 +48,8 @@ func runJlist(cmd *cobra.Command, args []string) {
 			cands = append(cands, as...)
 		}
 		for _, app := range _apps {
-			for _, cand := range cands {
-				if app == cand {
-					apps = append(apps, app)
-					break
-				}
+			if slices.Contains(cands, app) {
+				apps = append(apps, app)
 			}
 		}
 	} else {

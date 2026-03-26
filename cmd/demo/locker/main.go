@@ -167,10 +167,10 @@ func Dirty() {
 func Concurrent() {
 	var wg sync.WaitGroup
 	wg.Add(16 * 16)
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		go func() {
 			mu := ally.Locker("test")
-			for j := 0; j < 16; j++ {
+			for j := range 16 {
 				go func() {
 					defer wg.Done()
 
@@ -192,10 +192,10 @@ func Concurrent() {
 func Concurrent2() {
 	var wg sync.WaitGroup
 	wg.Add(16 * 16)
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		go func() {
 			mu := ally.Locker("test")
-			for j := 0; j < 16; j++ {
+			for j := range 16 {
 				go func() {
 					defer wg.Done()
 
@@ -229,11 +229,9 @@ func Bench() {
 	var ts = time.Now()
 	var elapsed_lock int64
 	var elapsed_unlock int64
-	for thread := 0; thread < threads; thread++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for loop := 0; loop < loops; loop++ {
+	for thread := range threads {
+		wg.Go(func() {
+			for loop := range loops {
 				name := fmt.Sprintf("test-%d", thread*loops+loop)
 				mu := ally.Locker(name)
 				{
@@ -247,7 +245,7 @@ func Bench() {
 					atomic.AddInt64(&elapsed_unlock, int64(time.Since(ts)))
 				}
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -270,12 +268,10 @@ func Bench2() {
 	var ts = time.Now()
 	var elapsed_lock int64
 	var elapsed_unlock int64
-	for thread := 0; thread < threads; thread++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for thread := range threads {
+		wg.Go(func() {
 			mu := ally.Locker(fmt.Sprintf("test-%d", thread))
-			for loop := 0; loop < loops; loop++ {
+			for range loops {
 				{
 					ts := time.Now()
 					mu.Lock()
@@ -287,7 +283,7 @@ func Bench2() {
 					atomic.AddInt64(&elapsed_unlock, int64(time.Since(ts)))
 				}
 			}
-		}()
+		})
 	}
 
 	wg.Wait()

@@ -62,14 +62,12 @@ func BenchSet(threads, loops int) {
 	var wg sync.WaitGroup
 	var cache = ally.Cache("test")
 	ts := time.Now()
-	for thread := 0; thread < threads; thread++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for loop := 0; loop < loops; loop++ {
+	for thread := range threads {
+		wg.Go(func() {
+			for loop := range loops {
 				cache.Set(fmt.Sprintf("%d", thread*loops+loop), []byte(time.Now().String()))
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	elapsed := time.Since(ts)
@@ -81,14 +79,12 @@ func BenchGet(threads, loops int) {
 	var wg sync.WaitGroup
 	var cache = ally.Cache("test")
 	ts := time.Now()
-	for thread := 0; thread < threads; thread++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for loop := 0; loop < loops; loop++ {
+	for thread := range threads {
+		wg.Go(func() {
+			for loop := range loops {
 				cache.Get(fmt.Sprintf("%d", thread*loops+loop))
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	elapsed := time.Since(ts)
@@ -100,14 +96,12 @@ func BenchDel(threads, loops int) {
 	var wg sync.WaitGroup
 	var cache = ally.Cache("test")
 	ts := time.Now()
-	for thread := 0; thread < threads; thread++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for loop := 0; loop < loops; loop++ {
+	for thread := range threads {
+		wg.Go(func() {
+			for loop := range loops {
 				cache.Del(fmt.Sprintf("%d", thread*loops+loop))
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	elapsed := time.Since(ts)

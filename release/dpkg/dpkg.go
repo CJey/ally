@@ -267,7 +267,7 @@ func Prepare() {
 	if err != nil {
 		exit(102, "ERROR: collect build env failed, %s\n", err)
 	}
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		if strings.Index(line, "=") < 0 {
 			continue
 		}

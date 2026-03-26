@@ -88,7 +88,7 @@ func newAllyLockerBuckets(addr string) *allyLockerBuckets {
 		conns: make([]pb.LockerClient, max),
 		seq:   -1,
 	}
-	for i := 0; i < max; i++ {
+	for i := range max {
 		if conn, err := getGrpcConn(addr); err != nil {
 			panic(fmt.Errorf("dial to ally [%s] for locker pool failed, %w", addr, err))
 		} else {

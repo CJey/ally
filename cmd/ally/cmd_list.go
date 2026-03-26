@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -53,11 +54,8 @@ func runList(cmd *cobra.Command, args []string) {
 		}
 
 		for _, app := range _apps {
-			for _, cand := range cands {
-				if app == cand {
-					apps = append(apps, app)
-					break
-				}
+			if slices.Contains(cands, app) {
+				apps = append(apps, app)
 			}
 		}
 	} else {

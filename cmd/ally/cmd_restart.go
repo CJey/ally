@@ -71,13 +71,13 @@ outer:
 			}
 		}
 
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			time.Sleep(10 * time.Millisecond)
 			if _, err := GetAllyAppInfo(app.Sock); err != nil {
 				continue outer
 			}
 		}
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			time.Sleep(100 * time.Millisecond)
 			if _, err := GetAllyAppInfo(app.Sock); err != nil {
 				continue outer
