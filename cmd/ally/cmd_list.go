@@ -531,6 +531,10 @@ func GetAllyConn(sock string) (*grpc.ClientConn, error) {
 	defer cfunc()
 	var real_err error
 	var conn, err = grpc.DialContext(ctx, sock, grpc.WithBlock(), grpc.WithInsecure(), grpc.FailOnNonTempDialError(true),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(internal.GRPC_MESSAGE_LIMIT),
+			grpc.MaxCallSendMsgSize(internal.GRPC_MESSAGE_LIMIT),
+		),
 		grpc.WithContextDialer(func(ctx context.Context, addr string) (conn net.Conn, err error) {
 			defer func() {
 				real_err = err

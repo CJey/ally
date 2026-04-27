@@ -163,6 +163,8 @@ func runWith(cmd *cobra.Command, args []string) {
 	// grpc server
 	go func() {
 		gsrv := grpc.NewServer(
+			grpc.MaxRecvMsgSize(internal.GRPC_MESSAGE_LIMIT),
+			grpc.MaxSendMsgSize(internal.GRPC_MESSAGE_LIMIT),
 			grpc.UnaryInterceptor(srv.UnaryInterceptor),
 			grpc.ConnectionTimeout(30*time.Second),
 			grpc.ConnectionTimeout(3*time.Second),

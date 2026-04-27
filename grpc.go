@@ -14,6 +14,8 @@ import (
 	pb "github.com/cjey/ally/proto"
 )
 
+const GRPC_MESSAGE_LIMIT = internal.GRPC_MESSAGE_LIMIT
+
 type simAddress struct {
 	lsn     net.Listener
 	conn    net.PacketConn

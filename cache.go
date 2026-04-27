@@ -213,7 +213,7 @@ type allyCache struct {
 func (ac *allyCache) Set(key string, val []byte, ttl ...time.Duration) {
 	req := &pb.CacheSetRequest{Ns: ac.ns, Key: key, Val: val}
 	if len(ttl) > 0 && ttl[0] > 0 {
-		req.Ttl = uint64(ttl[0].Truncate(time.Millisecond))
+		req.Ttl = uint64(ttl[0] / time.Millisecond)
 	}
 	if _, err := ac.ally().CacheSet(context.Background(), req); err != nil {
 		panic(runtimeError(err))

@@ -115,6 +115,10 @@ func getGrpcConn(addr string) (*grpc.ClientConn, error) {
 	defer cfunc()
 	var real_err error
 	var conn, err = grpc.DialContext(ctx, addr, grpc.WithBlock(), grpc.WithInsecure(),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(GRPC_MESSAGE_LIMIT),
+			grpc.MaxCallSendMsgSize(GRPC_MESSAGE_LIMIT),
+		),
 		grpc.WithContextDialer(func(ctx context.Context, addr string) (conn net.Conn, err error) {
 			defer func() {
 				real_err = err

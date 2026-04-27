@@ -203,6 +203,8 @@ arch="$(lscpu | grep '^Architecture:' | awk '{print $2}')"
 [ "$arch" = "aarch64" ] && arch="arm64"
 ln -sfT ${{BinFile}}.$arch ${{CmdFile}}
 
+${{CmdFile}} completion bash > /etc/bash_completion.d/${{Appname}}
+
 if [ -d /run/systemd/system ]; then
 	cat ${{DataDir}}/ally-wakeup.service > /usr/lib/systemd/system/ally-wakeup.service
 	systemctl daemon-reload
