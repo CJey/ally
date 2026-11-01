@@ -79,14 +79,13 @@ func (scb *simCacheBuckets) Bucket(ns string) CacheInterface {
 
 type allyCacheBuckets struct {
 	conns []pb.CacheClient
-	seq   int64
+	seq   atomic.Uint64
 }
 
 func newAllyCacheBuckets(addr string) *allyCacheBuckets {
 	max := 2
 	acb := &allyCacheBuckets{
 		conns: make([]pb.CacheClient, max),
-		seq:   -1,
 	}
 	for i := range max {
 		if conn, err := getGrpcConn(addr); err != nil {
@@ -99,7 +98,7 @@ func newAllyCacheBuckets(addr string) *allyCacheBuckets {
 }
 
 func (acb *allyCacheBuckets) ally() pb.CacheClient {
-	return acb.conns[int(atomic.AddInt64(&acb.seq, 1))%len(acb.conns)]
+	return acb.conns[acb.seq.Add(1)%uint64(len(acb.conns))]
 }
 
 func (acb *allyCacheBuckets) Bucket(ns string) CacheInterface {

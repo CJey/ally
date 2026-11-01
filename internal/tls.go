@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"math/big"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -41,10 +42,13 @@ func TLSClientConn(raw *net.UnixConn) *tls.Conn {
 	return tls.Client(raw, cfg)
 }
 
-func TLSServerConn(raw *net.UnixConn) *tls.Conn {
-	var cert = autoGenerateCert()
-	var cfg = &tls.Config{
-		Certificates: []tls.Certificate{*cert},
+// 自签证书只用于加密信道，身份靠SO_PEERCRED比对ppid，故可全进程复用；每连接生成P-384会在CPU紧张时拖垮Accept
+var serverTLSConfig = sync.OnceValue(func() *tls.Config {
+	return &tls.Config{
+		Certificates: []tls.Certificate{*autoGenerateCert()},
 	}
-	return tls.Server(raw, cfg)
+})
+
+func TLSServerConn(raw *net.UnixConn) *tls.Conn {
+	return tls.Server(raw, serverTLSConfig())
 }

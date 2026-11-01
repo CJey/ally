@@ -11,7 +11,6 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/spf13/cobra v1.10.2
-	github.com/struCoder/pidusage v0.2.1
 	golang.org/x/sys v0.49.0
 	google.golang.org/grpc v1.85.0
 	google.golang.org/protobuf v1.36.12

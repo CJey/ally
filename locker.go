@@ -79,14 +79,13 @@ func (slb *simLockerBuckets) Bucket(name string) LockerInterface {
 
 type allyLockerBuckets struct {
 	conns []pb.LockerClient
-	seq   int64
+	seq   atomic.Uint64
 }
 
 func newAllyLockerBuckets(addr string) *allyLockerBuckets {
 	max := 8
 	alb := &allyLockerBuckets{
 		conns: make([]pb.LockerClient, max),
-		seq:   -1,
 	}
 	for i := range max {
 		if conn, err := getGrpcConn(addr); err != nil {
@@ -99,7 +98,7 @@ func newAllyLockerBuckets(addr string) *allyLockerBuckets {
 }
 
 func (alb *allyLockerBuckets) ally() pb.LockerClient {
-	return alb.conns[int(atomic.AddInt64(&alb.seq, 1))%len(alb.conns)]
+	return alb.conns[alb.seq.Add(1)%uint64(len(alb.conns))]
 }
 
 func (alb *allyLockerBuckets) Bucket(name string) LockerInterface {

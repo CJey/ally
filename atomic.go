@@ -64,14 +64,13 @@ func (sab *simAtomicBuckets) Bucket(name string) AtomicInterface {
 
 type allyAtomicBuckets struct {
 	conns []pb.AtomicClient
-	seq   int64
+	seq   atomic.Uint64
 }
 
 func newAllyAtomicBuckets(addr string) *allyAtomicBuckets {
 	max := 8
 	aab := &allyAtomicBuckets{
 		conns: make([]pb.AtomicClient, max),
-		seq:   -1,
 	}
 	for i := range max {
 		if conn, err := getGrpcConn(addr); err != nil {
@@ -84,7 +83,7 @@ func newAllyAtomicBuckets(addr string) *allyAtomicBuckets {
 }
 
 func (aab *allyAtomicBuckets) ally() pb.AtomicClient {
-	return aab.conns[int(atomic.AddInt64(&aab.seq, 1))%len(aab.conns)]
+	return aab.conns[aab.seq.Add(1)%uint64(len(aab.conns))]
 }
 
 func (aab *allyAtomicBuckets) Bucket(name string) AtomicInterface {

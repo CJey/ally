@@ -174,12 +174,25 @@ fi
 `))
 
 	rpm.AddPostin(EnvReplace(`
-arch="$(lscpu | grep '^Architecture:' | awk '{print $2}')"
-[ "$arch" = "i386" -o "$arch" = "i686" ] && arch="i386"
-[ "$arch" = "x86_64" ] && arch="x86_64"
-[ "$arch" = "armv7l" ] && arch="armv7hl"
-[ "$arch" = "aarch64" ] && arch="aarch64"
+# 按用户态架构取二进制，不能看内核：Pi 4 上的 32 位系统默认跑 64 位内核
+arch="${{PkgArch}}"
+if [ "$arch" = "noarch" ]; then
+    bits="$(getconf LONG_BIT)"
+    case "$(uname -m)" in
+        x86_64|i?86)           [ "$bits" = 64 ] && arch=x86_64 || arch=i386 ;;
+        aarch64|armv7l|armv8l) [ "$bits" = 64 ] && arch=aarch64 || arch=armv7hl ;;
+        *)                     arch="$(uname -m)" ;;
+    esac
+fi
+if [ ! -e ${{BinFile}}.$arch ]; then
+    echo "ERROR: unsupported architecture [$arch]"
+    exit 1
+fi
 ln -sfT ${{BinFile}}.$arch ${{CmdFile}}
+
+if [ -d /etc/bash_completion.d ]; then
+    ${{CmdFile}} completion bash > /etc/bash_completion.d/${{Appname}}
+fi
 
 if [ -d /run/systemd/system ]; then
     rm -f /usr/lib/systemd/system/ally-wakeup.service
@@ -200,6 +213,7 @@ fi
 	rpm.AddPostun(EnvReplace(`
 if [ $1 -eq 0 ]; then # 卸载
     rm -f ${{CmdFile}}
+    rm -f /etc/bash_completion.d/${{Appname}}
     rm -f /usr/lib/systemd/system/ally-wakeup.service \
           /etc/systemd/system/ally-wakeup.service \
           /etc/systemd/system/multi-user.target.wants/ally-wakeup.service \
@@ -330,6 +344,7 @@ func EnvReplace(origin string) string {
 		"${{BinFile}}", BinFile,
 		"${{DataDir}}", DataDir,
 		"${{LogDir}}", LogDir,
+		"${{PkgArch}}", RPMArch(os.Getenv("GOARCH")),
 	)
 	return rp.Replace(origin)
 }

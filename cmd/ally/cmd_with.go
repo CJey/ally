@@ -20,12 +20,12 @@ import (
 	"github.com/kballard/go-shellquote"
 	"github.com/patrickmn/go-cache"
 	"github.com/spf13/cobra"
-	"github.com/struCoder/pidusage"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/peer"
 
 	"github.com/cjey/ally/internal"
+	"github.com/cjey/ally/internal/sysstat"
 	pb "github.com/cjey/ally/proto"
 	"github.com/cjey/ally/release/app"
 )
@@ -74,12 +74,8 @@ func runWith(cmd *cobra.Command, args []string) {
 		app_family = val
 	}
 
-	var cuser, err = user.Current()
-	if err != nil {
-		Exit(1, "ERROR[Ally]: Get current user info failed, %s\n", err)
-	}
-	var uid, _ = strconv.Atoi(cuser.Uid)
-	var gid, _ = strconv.Atoi(cuser.Gid)
+	// 默认取进程实际身份而非passwd记录，run据此判断是否需要切换
+	var uid, gid = os.Geteuid(), os.Getegid()
 
 	// --app-user
 	var app_user string
@@ -393,12 +389,13 @@ func (s *Server) run() error {
 		return fmt.Errorf("give up")
 	}
 
-	cmd := exec.Command(s.bin, s.args...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Credential: &syscall.Credential{
-			Uid: uint32(s.uid), Gid: uint32(s.gid),
-		},
+	cred, err := s.credential()
+	if err != nil {
+		s.last_err = err
+		return err
 	}
+	cmd := exec.Command(s.bin, s.args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Credential: cred}
 	if s.pwd != "" {
 		cmd.Dir = s.pwd
 	}
@@ -439,6 +436,31 @@ func (s *Server) run() error {
 	return nil
 }
 
+func (s *Server) credential() (*syscall.Credential, error) {
+	// 身份不变时直接继承：设了Credential子进程就会setgroups，普通用户无此权限
+	if s.uid == os.Geteuid() && s.gid == os.Getegid() {
+		return nil, nil
+	}
+	// 附加组按目标用户初始化(同su/systemd)，每次拉起都重读，组变更热重载即生效
+	u, err := user.LookupId(strconv.Itoa(s.uid))
+	if err != nil {
+		return nil, fmt.Errorf("lookup user[%d] failed, %w", s.uid, err)
+	}
+	ids, err := u.GroupIds()
+	if err != nil {
+		return nil, fmt.Errorf("lookup groups of user[%s] failed, %w", u.Username, err)
+	}
+	groups := make([]uint32, len(ids))
+	for i, id := range ids {
+		n, err := strconv.ParseUint(id, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid gid[%s] of user[%s]", id, u.Username)
+		}
+		groups[i] = uint32(n)
+	}
+	return &syscall.Credential{Uid: uint32(s.uid), Gid: uint32(s.gid), Groups: groups}, nil
+}
+
 func (s *Server) background() {
 	go func() {
 		for {
@@ -450,19 +472,20 @@ func (s *Server) background() {
 
 			s.mu.Lock()
 
-			// revoke address
-			revoked := 0
-			for i, addr := range s.addrs {
-				if addr.refs > 0 {
-					continue
+			// revoke address，主实例空窗期不回收，留给新实例复用
+			if s.inst != nil && time.Since(s.inst.start) > 5*time.Minute {
+				kept := s.addrs[:0]
+				for _, addr := range s.addrs {
+					if addr.refs == 0 && time.Since(addr.updated) > 5*time.Minute {
+						// inactive addr, auto revoke
+						addr.file.Close()
+						s.L.Printf("revoked %s %s", addr.network, addr.address)
+						continue
+					}
+					kept = append(kept, addr)
 				}
-				if time.Since(addr.updated) > 5*time.Minute && time.Since(s.inst.start) > 5*time.Minute {
-					// inactive addr, auto revoke
-					addr.file.Close()
-					s.addrs = append(s.addrs[:i-revoked], s.addrs[i-revoked+1:]...)
-					revoked++
-					s.L.Printf("revoked %s %s", addr.network, addr.address)
-				}
+				clear(s.addrs[len(kept):]) // 去掉尾部悬垂引用
+				s.addrs = kept
 			}
 
 			if s.inst != nil && s.inst.ready.When == nil {
@@ -787,7 +810,7 @@ func (s *Server) getInstanceInfo(inst *Instance) *pb.InstanceInfo {
 
 		Addresses: make([]*pb.Address, len(inst.addrs)),
 	}
-	if stat, err := pidusage.GetStat(inst.pid); err == nil {
+	if stat, err := sysstat.GetStat(inst.pid); err == nil {
 		info.Cpu, info.Ram = stat.CPU, stat.Memory
 	}
 	for i, addr := range inst.addrs {
@@ -862,9 +885,11 @@ func (s *Server) Heartbeat(ctx context.Context, req *pb.HeartbeatRequest) (*pb.H
 	var pid = s.who(ctx)
 	var rep = &pb.HeartbeatResponse{}
 
+	// killSeniors要遍历s.insts，实例字段也被GetAppInfo并发读，故全程持锁
 	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	var inst = s.insts[pid]
-	s.mu.Unlock()
 	if inst == nil { // 只响应app实例
 		rep.Code = pb.HeartbeatResponse_EC_PERMISSION
 		return rep, nil
@@ -889,7 +914,7 @@ func (s *Server) GetAppInfo(ctx context.Context, req *pb.GetAppInfoRequest) (*pb
 	rep.Commit = app.App.Git.CommitHash
 	rep.Version = app.Version
 	rep.StartTime = StartTime.UnixNano()
-	if stat, err := pidusage.GetStat(os.Getpid()); err == nil {
+	if stat, err := sysstat.GetStat(os.Getpid()); err == nil {
 		rep.Cpu, rep.Ram = stat.CPU, stat.Memory
 	}
 
@@ -975,7 +1000,9 @@ func (s *Server) nsCache(ns string) *cache.Cache {
 
 func (s *Server) auth(ctx context.Context) (*Instance, error) {
 	var pid = s.who(ctx)
+	s.mu.RLock()
 	var inst = s.insts[pid]
+	s.mu.RUnlock()
 	if inst == nil {
 		return nil, fmt.Errorf("permission denied")
 	}

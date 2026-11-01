@@ -8,9 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/struCoder/pidusage"
-
 	"github.com/cjey/ally/internal"
+	"github.com/cjey/ally/internal/sysstat"
 	pb "github.com/cjey/ally/proto"
 )
 
@@ -38,10 +37,10 @@ func simInstanceInfo() *pb.InstanceInfo {
 		Commit:    Commit,
 		Version:   Version,
 	}
-	if stat, err := pidusage.GetStat(os.Getpid()); err == nil {
+	if stat, err := sysstat.GetStat(os.Getpid()); err == nil {
 		info.Cpu, info.Ram = stat.CPU, stat.Memory
 	}
-	if _Ready {
+	if _Ready.Load() {
 		info.Stat = pb.InstanceStat_RUNNING
 	} else {
 		info.Stat = pb.InstanceStat_PREPARING
@@ -207,6 +206,7 @@ func _CloseSocket(network, address string) error {
 		for i, saddr := range _SimAddresses {
 			if saddr.network == network && saddr.address == address {
 				_SimAddresses = append(_SimAddresses[:i], _SimAddresses[i+1:]...)
+				break
 			}
 		}
 		return nil
@@ -230,7 +230,7 @@ func _Heartbeat() {
 	if _Client == nil {
 		return
 	}
-	var req = &pb.HeartbeatRequest{Commit: Commit, Version: Version, Ready: _Ready}
+	var req = &pb.HeartbeatRequest{Commit: Commit, Version: Version, Ready: _Ready.Load()}
 	if DynamicHook != nil {
 		req.Tasks, req.Description = DynamicHook()
 	}

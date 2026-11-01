@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"google.golang.org/grpc"
@@ -22,7 +23,7 @@ var (
 	_Client    pb.AllyClient
 	_FDChannel *net.UnixConn
 	_FileChan  = make(chan *os.File, 0)
-	_Ready     = false
+	_Ready     atomic.Bool
 )
 
 var (
@@ -58,7 +59,7 @@ var (
 
 // [*core*] Ready 用于向Ally通报本实例的准备工作已经全部准备就绪，可以接受并处理业务请求了
 func Ready() {
-	_Ready = true
+	_Ready.Store(true)
 	_Heartbeat()
 }
 

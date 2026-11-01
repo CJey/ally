@@ -173,6 +173,7 @@ echo "--- postrm"
 
 if [ "$1" = "remove" -o "$1" = "purge" ]; then
     rm -f ${{CmdFile}}
+    rm -f /etc/bash_completion.d/${{Appname}}
     if [ -d /run/systemd/system ]; then
 	    systemctl disable ally-wakeup
         rm -f /usr/lib/systemd/system/ally-wakeup.service
@@ -196,11 +197,13 @@ fi
 #   configure: $2(new version), after upgrade
 echo "--- postinst"
 
-arch="$(lscpu | grep '^Architecture:' | awk '{print $2}')"
-[ "$arch" = "i386" -o "$arch" = "i686" ] && arch="i386"
-[ "$arch" = "x86_64" ] && arch="amd64"
-[ "$arch" = "armv7l" ] && arch="armhf"
-[ "$arch" = "aarch64" ] && arch="arm64"
+# 按用户态架构取二进制，不能看内核：Pi 4 上的 32 位系统默认跑 64 位内核
+arch="${{PkgArch}}"
+[ "$arch" = "all" ] && arch="$(dpkg --print-architecture)"
+if [ ! -e ${{BinFile}}.$arch ]; then
+    echo "ERROR: unsupported architecture [$arch]"
+    exit 1
+fi
 ln -sfT ${{BinFile}}.$arch ${{CmdFile}}
 
 ${{CmdFile}} completion bash > /etc/bash_completion.d/${{Appname}}
@@ -344,6 +347,7 @@ func EnvReplace(origin string) string {
 		"${{BinFile}}", BinFile,
 		"${{DataDir}}", DataDir,
 		"${{LogDir}}", LogDir,
+		"${{PkgArch}}", DEBArch(os.Getenv("GOARCH")),
 	)
 	return rp.Replace(origin)
 }

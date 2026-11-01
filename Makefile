@@ -53,3 +53,13 @@ x64: amd64
 
 arm: deb-arm rpm-arm
 arm64: deb-arm64 rpm-arm64
+
+# 只留module行重新tidy，全部依赖升到最新；失败时还原go.mod
+tidy:
+	cp go.mod go.mod.bak && grep -m1 '^module ' go.mod.bak > go.mod && \
+		if go mod tidy; then rm -f go.mod.bak; else mv go.mod.bak go.mod; exit 1; fi
+
+vet:
+	CGO_ENABLED=0 go fix ./...
+	go fmt ./...
+	CGO_ENABLED=0 go vet ./...
