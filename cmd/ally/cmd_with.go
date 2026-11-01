@@ -272,7 +272,7 @@ type Server struct {
 
 	addrs []*Address
 
-	req   uint64
+	req   atomic.Uint64
 	seq   uint64
 	inst  *Instance
 	insts map[int]*Instance
@@ -332,7 +332,7 @@ func (s *Server) UnaryInterceptor(ctx context.Context, req any,
 	case pb.Ally_GetAppInfo_FullMethodName:
 	case pb.Ally_GetInstanceInfo_FullMethodName:
 	default:
-		session = atomic.AddUint64(&s.req, 1)
+		session = s.req.Add(1)
 		ctx = context.WithValue(ctx, "session", session)
 	}
 	return handler(ctx, req)
