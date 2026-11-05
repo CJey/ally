@@ -10,15 +10,18 @@ import (
 
 // SendFile 将给定*os.File的fd通过unix socket发送出去
 func SendFile(via *net.UnixConn, file *os.File) error {
-	viaf, err := via.File()
+	// 不能用file.Fd()：它会把各实例共享的socket切成阻塞模式，正在accept的实例将卡进内核，关闭时随之挂住
+	raw, err := file.SyscallConn()
 	if err != nil {
 		return err
 	}
-	socket := int(viaf.Fd())
-	defer viaf.Close()
-
-	rights := syscall.UnixRights(int(file.Fd()))
-	return syscall.Sendmsg(socket, nil, rights, nil, 0)
+	var serr error
+	if err := raw.Control(func(fd uintptr) {
+		_, _, serr = via.WriteMsgUnix(nil, syscall.UnixRights(int(fd)), nil)
+	}); err != nil {
+		return err
+	}
+	return serr
 }
 
 // RecvFile 从给定的unix socket中接收一个fd并转换为*os.File

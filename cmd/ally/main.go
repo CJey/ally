@@ -43,7 +43,7 @@ var RootCommand = &cobra.Command{
 	Long: `Ally is a process manager which provide reload service gracefully
     
 Config by env:
-    ALLY_CONFIG_CRASH_WAIT=3000, wait some milliseconds then start a new app instance after app crashed
+    ALLY_CONFIG_CRASH_WAIT=3000, wait some milliseconds then start a new app instance after app crashed, <=0 to disable
     ALLY_CONFIG_SOCKS_PATH=/var/lib/ally, ally's socks & storage directory
     ALLY_CONFIG_LOGS_PATH=/var/log/ally, ally's app stdout & stderr log directory
 `,
@@ -73,7 +73,7 @@ func parseEnvConfig(*cobra.Command, []string) {
 			Exit(102, "ERROR[Ally]: ALLY_CONFIG_CRASH_WAIT must be a duration(ms), %s\n", e)
 		} else if v > 0 {
 			CrashWait = time.Duration(v) * time.Millisecond
-		} else if v < 0 {
+		} else {
 			CrashWait = 0
 		}
 	}
@@ -86,7 +86,7 @@ func parseEnvConfig(*cobra.Command, []string) {
 	}
 	if val := os.Getenv("ALLY_CONFIG_LOGS_PATH"); val != "" {
 		if val, err := filepath.Abs(val); err != nil {
-			Exit(103, "ERROR[Ally]: Get socks directory fullpath failed, %s\n", err)
+			Exit(103, "ERROR[Ally]: Get logs directory fullpath failed, %s\n", err)
 		} else {
 			LogsPath = val
 		}

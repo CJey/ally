@@ -126,7 +126,7 @@ type allyAtomic struct {
 func (aa *allyAtomic) Add(delta int64) (new int64) {
 	req := &pb.AtomicAddRequest{Name: aa.name, Delta: delta}
 	if rep, err := aa.ally().AtomicAdd(context.Background(), req); err != nil {
-		panic(runtimeError(err))
+		panic(rpcError(err))
 	} else {
 		return rep.Val
 	}
@@ -135,7 +135,7 @@ func (aa *allyAtomic) Add(delta int64) (new int64) {
 func (aa *allyAtomic) Load() (val int64) {
 	req := &pb.AtomicLoadRequest{Name: aa.name}
 	if rep, err := aa.ally().AtomicLoad(context.Background(), req); err != nil {
-		panic(runtimeError(err))
+		panic(rpcError(err))
 	} else {
 		return rep.Val
 	}
@@ -144,14 +144,14 @@ func (aa *allyAtomic) Load() (val int64) {
 func (aa *allyAtomic) Store(val int64) {
 	req := &pb.AtomicStoreRequest{Name: aa.name, Val: val}
 	if _, err := aa.ally().AtomicStore(context.Background(), req); err != nil {
-		panic(runtimeError(err))
+		panic(rpcError(err))
 	}
 }
 
 func (aa *allyAtomic) Swap(new int64) (old int64) {
 	req := &pb.AtomicSwapRequest{Name: aa.name, New: new}
 	if rep, err := aa.ally().AtomicSwap(context.Background(), req); err != nil {
-		panic(runtimeError(err))
+		panic(rpcError(err))
 	} else {
 		return rep.Old
 	}
@@ -160,7 +160,7 @@ func (aa *allyAtomic) Swap(new int64) (old int64) {
 func (aa *allyAtomic) CompareAndSwap(old, new int64) (swapped bool) {
 	req := &pb.AtomicCompareAndSwapRequest{Name: aa.name, Old: old, New: new}
 	if rep, err := aa.ally().AtomicCompareAndSwap(context.Background(), req); err != nil {
-		panic(runtimeError(err))
+		panic(rpcError(err))
 	} else {
 		return rep.Swapped
 	}

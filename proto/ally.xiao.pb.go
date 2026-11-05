@@ -29,6 +29,7 @@ const (
 	ListenSocketResponse_EC_BAD_ADDRESS ListenSocketResponse_Code = 2 // 地址格式问题
 	ListenSocketResponse_EC_LISTEN      ListenSocketResponse_Code = 3 // listen失败
 	ListenSocketResponse_EC_SEND        ListenSocketResponse_Code = 4 // 发送fd给app失败
+	ListenSocketResponse_EC_CLOSING     ListenSocketResponse_Code = 5 // app正在退出，不再受理新的监听
 )
 
 // Enum value maps for ListenSocketResponse_Code.
@@ -39,6 +40,7 @@ var (
 		2: "EC_BAD_ADDRESS",
 		3: "EC_LISTEN",
 		4: "EC_SEND",
+		5: "EC_CLOSING",
 	}
 	ListenSocketResponse_Code_value = map[string]int32{
 		"EC_OK":          0,
@@ -46,6 +48,7 @@ var (
 		"EC_BAD_ADDRESS": 2,
 		"EC_LISTEN":      3,
 		"EC_SEND":        4,
+		"EC_CLOSING":     5,
 	}
 )
 
@@ -82,6 +85,7 @@ const (
 	CloseSocketResponse_EC_OK          CloseSocketResponse_Code = 0
 	CloseSocketResponse_EC_PERMISSION  CloseSocketResponse_Code = 1 // 仅允许app实例访问此接口
 	CloseSocketResponse_EC_BAD_ADDRESS CloseSocketResponse_Code = 2 // 地址格式问题
+	CloseSocketResponse_EC_NOT_FOUND   CloseSocketResponse_Code = 3 // 本实例未监听此地址
 )
 
 // Enum value maps for CloseSocketResponse_Code.
@@ -90,11 +94,13 @@ var (
 		0: "EC_OK",
 		1: "EC_PERMISSION",
 		2: "EC_BAD_ADDRESS",
+		3: "EC_NOT_FOUND",
 	}
 	CloseSocketResponse_Code_value = map[string]int32{
 		"EC_OK":          0,
 		"EC_PERMISSION":  1,
 		"EC_BAD_ADDRESS": 2,
+		"EC_NOT_FOUND":   3,
 	}
 )
 
@@ -129,8 +135,9 @@ type ReloadAppResponse_Code int32
 
 const (
 	ReloadAppResponse_EC_OK         ReloadAppResponse_Code = 0
-	ReloadAppResponse_EC_PERMISSION ReloadAppResponse_Code = 1 // 仅允许最新app实例访问此接口
+	ReloadAppResponse_EC_PERMISSION ReloadAppResponse_Code = 1 // 仅允许app实例访问此接口
 	ReloadAppResponse_EC_RELOAD     ReloadAppResponse_Code = 2
+	ReloadAppResponse_EC_NOT_MAIN   ReloadAppResponse_Code = 3 // 仅主实例可发起，其余实例的请求被忽略
 )
 
 // Enum value maps for ReloadAppResponse_Code.
@@ -139,11 +146,13 @@ var (
 		0: "EC_OK",
 		1: "EC_PERMISSION",
 		2: "EC_RELOAD",
+		3: "EC_NOT_MAIN",
 	}
 	ReloadAppResponse_Code_value = map[string]int32{
 		"EC_OK":         0,
 		"EC_PERMISSION": 1,
 		"EC_RELOAD":     2,
+		"EC_NOT_MAIN":   3,
 	}
 )
 
@@ -1517,34 +1526,38 @@ const file_ally_xiao_proto_rawDesc = "" +
 	"\x0fally.xiao.proto\x12\txiao.ally\"I\n" +
 	"\x13ListenSocketRequest\x12\x18\n" +
 	"\anetwork\x18\x01 \x01(\tR\anetwork\x12\x18\n" +
-	"\aaddress\x18\x02 \x01(\tR\aaddress\"\xbc\x01\n" +
+	"\aaddress\x18\x02 \x01(\tR\aaddress\"\xcc\x01\n" +
 	"\x14ListenSocketResponse\x128\n" +
 	"\x04code\x18\x01 \x01(\x0e2$.xiao.ally.ListenSocketResponse.CodeR\x04code\x12\x14\n" +
-	"\x05error\x18\x02 \x01(\tR\x05error\"T\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"d\n" +
 	"\x04Code\x12\t\n" +
 	"\x05EC_OK\x10\x00\x12\x11\n" +
 	"\rEC_PERMISSION\x10\x01\x12\x12\n" +
 	"\x0eEC_BAD_ADDRESS\x10\x02\x12\r\n" +
 	"\tEC_LISTEN\x10\x03\x12\v\n" +
-	"\aEC_SEND\x10\x04\"H\n" +
+	"\aEC_SEND\x10\x04\x12\x0e\n" +
+	"\n" +
+	"EC_CLOSING\x10\x05\"H\n" +
 	"\x12CloseSocketRequest\x12\x18\n" +
 	"\anetwork\x18\x01 \x01(\tR\anetwork\x12\x18\n" +
-	"\aaddress\x18\x02 \x01(\tR\aaddress\"\x9e\x01\n" +
+	"\aaddress\x18\x02 \x01(\tR\aaddress\"\xb0\x01\n" +
 	"\x13CloseSocketResponse\x127\n" +
 	"\x04code\x18\x01 \x01(\x0e2#.xiao.ally.CloseSocketResponse.CodeR\x04code\x12\x14\n" +
-	"\x05error\x18\x02 \x01(\tR\x05error\"8\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"J\n" +
 	"\x04Code\x12\t\n" +
 	"\x05EC_OK\x10\x00\x12\x11\n" +
 	"\rEC_PERMISSION\x10\x01\x12\x12\n" +
-	"\x0eEC_BAD_ADDRESS\x10\x02\"\x12\n" +
-	"\x10ReloadAppRequest\"\x95\x01\n" +
+	"\x0eEC_BAD_ADDRESS\x10\x02\x12\x10\n" +
+	"\fEC_NOT_FOUND\x10\x03\"\x12\n" +
+	"\x10ReloadAppRequest\"\xa6\x01\n" +
 	"\x11ReloadAppResponse\x125\n" +
 	"\x04code\x18\x01 \x01(\x0e2!.xiao.ally.ReloadAppResponse.CodeR\x04code\x12\x14\n" +
-	"\x05error\x18\x02 \x01(\tR\x05error\"3\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"D\n" +
 	"\x04Code\x12\t\n" +
 	"\x05EC_OK\x10\x00\x12\x11\n" +
 	"\rEC_PERMISSION\x10\x01\x12\r\n" +
-	"\tEC_RELOAD\x10\x02\"\x92\x01\n" +
+	"\tEC_RELOAD\x10\x02\x12\x0f\n" +
+	"\vEC_NOT_MAIN\x10\x03\"\x92\x01\n" +
 	"\x10HeartbeatRequest\x12\x14\n" +
 	"\x05ready\x18\x01 \x01(\bR\x05ready\x12\x14\n" +
 	"\x05tasks\x18\x02 \x01(\x04R\x05tasks\x12\x16\n" +

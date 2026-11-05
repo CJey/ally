@@ -69,7 +69,7 @@ func ParseFlags(cmd *cobra.Command, args []string) {
 	case "all", "noarch", "any":
 		f_arch = ""
 	default:
-		exit(100, "ERROR: unsupport arch[%s]\n", f_arch)
+		exit(100, "ERROR: unsupported arch[%s]\n", f_arch)
 	}
 	if err := os.Setenv("GOARCH", f_arch); err != nil {
 		exit(101, "ERROR: set environ GOARCH failed, %s\n", err)
@@ -101,7 +101,7 @@ func Run(cmd *cobra.Command, args []string) {
 	for _, arch := range archs {
 		var pattern = fmt.Sprintf("%s.%s.debbuild.*", Appname, arch)
 		ts := time.Now()
-		fmt.Printf("> Buiding... GOOS=%s GOARCH=%s\n", os.Getenv("GOOS"), arch)
+		fmt.Printf("> Building... GOOS=%s GOARCH=%s\n", os.Getenv("GOOS"), arch)
 		fmt.Printf("  App:     %s\n", Appname)
 		fmt.Printf("  Version: %s\n", FullVersion)
 		if f, err := os.CreateTemp("", pattern); err != nil {
@@ -145,7 +145,7 @@ func Run(cmd *cobra.Command, args []string) {
 echo "--- prerm"
 
 if [ "$1" = "remove" ]; then
-    ${{CmdFile}} stop --family all
+    ${{CmdFile}} stop --family all || : # prerm失败会中止卸载
 else
     :
 fi
@@ -176,7 +176,7 @@ if [ "$1" = "remove" -o "$1" = "purge" ]; then
     rm -f /etc/bash_completion.d/${{Appname}}
     if [ -d /run/systemd/system ]; then
 	    systemctl disable ally-wakeup
-        rm -f /usr/lib/systemd/system/ally-wakeup.service
+        rm -f /lib/systemd/system/ally-wakeup.service
         systemctl daemon-reload
     else
         update-rc.d -f ally-wakeup remove
@@ -206,20 +206,21 @@ if [ ! -e ${{BinFile}}.$arch ]; then
 fi
 ln -sfT ${{BinFile}}.$arch ${{CmdFile}}
 
-${{CmdFile}} completion bash > /etc/bash_completion.d/${{Appname}}
+if [ -d /etc/bash_completion.d ]; then
+    ${{CmdFile}} completion bash > /etc/bash_completion.d/${{Appname}}
+fi
 
 if [ -d /run/systemd/system ]; then
-	cat ${{DataDir}}/ally-wakeup.service > /usr/lib/systemd/system/ally-wakeup.service
+	cat ${{DataDir}}/ally-wakeup.service > /lib/systemd/system/ally-wakeup.service
 	systemctl daemon-reload
 else
-	cat ${{DataDir}}/ally-wakeup > /etc/init.d/ally-wakeup
+	install -m 0755 ${{DataDir}}/ally-wakeup /etc/init.d/ally-wakeup
 fi
 
 if [ -z "$2" ]; then
     if [ -d /run/systemd/system ]; then
         systemctl enable ally-wakeup
     else
-        cat ${{DataDir}}/ally-wakeup > /etc/init.d/ally-wakeup
         update-rc.d ally-wakeup defaults
     fi
 else
@@ -308,7 +309,7 @@ func AddControlExtra(pkg *debpkg.DebPkg, name, filename string) {
 }
 func AddControlExtraString(pkg *debpkg.DebPkg, name, s string) {
 	if err := pkg.AddControlExtraString(name, EnvReplace(s)); err != nil {
-		exit(103, "ERROR: add controle extra[%s] string to pkg failed, %s\n", name, err)
+		exit(103, "ERROR: add control extra[%s] string to pkg failed, %s\n", name, err)
 	}
 }
 func AddDirectory(pkg *debpkg.DebPkg, dir string) {

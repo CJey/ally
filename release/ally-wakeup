@@ -37,14 +37,14 @@ ally="/bin/ally"
 start() {
     [ -x $ally ] || return 5
 
-    echo -n $"Starting $prog: "
+    echo -n "Starting $prog: "
     $ally wakeup
     RETVAL=$?
     return $RETVAL
 }
 
 stop() {
-    echo -n $"Shutting down $prog: "
+    echo -n "Shutting down $prog: "
     # No-op
     RETVAL=7
     return $RETVAL

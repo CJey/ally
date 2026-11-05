@@ -33,7 +33,7 @@ func init() {
 	cmd.PersistentFlags().String("app-bin", "", "the app's program file path")
 	cmd.PersistentFlags().String("app-pwd", "", "the app's working directory")
 	cmd.PersistentFlags().String("app-path", "", "the app's PATH")
-	cmd.PersistentFlags().StringSlice("app-env", []string{}, "the app's ENV")
+	cmd.PersistentFlags().StringArray("app-env", []string{}, "the app's ENV")
 
 	RootCommand.AddCommand(cmd)
 }
@@ -63,6 +63,7 @@ func runInvite(cmd *cobra.Command, args []string) {
 		} else if val == ALL_FAMILY {
 			Exit(1, "ERROR[Ally]: Reserved family[%s]\n", ALL_FAMILY)
 		}
+		app_family = val
 	}
 
 	// --app-user
@@ -101,7 +102,11 @@ func runInvite(cmd *cobra.Command, args []string) {
 	// --app-pwd
 	var app_pwd string
 	if val, _ := cmd.PersistentFlags().GetString("app-pwd"); val != "" {
-		app_pwd = val
+		if abs, err := filepath.Abs(val); err != nil {
+			Exit(2, "ERROR[Ally]: Get the app's working directory fullpath failed, %s\n", err)
+		} else {
+			app_pwd = abs
+		}
 	}
 	// --app-path
 	var app_path string
@@ -109,7 +114,7 @@ func runInvite(cmd *cobra.Command, args []string) {
 		app_path = val
 	}
 	// --app-env
-	var app_envs, _ = cmd.PersistentFlags().GetStringSlice("app-env")
+	var app_envs, _ = cmd.PersistentFlags().GetStringArray("app-env")
 
 	lock := GetFlock()
 	if err := lock.Lock(); err != nil {
@@ -173,7 +178,8 @@ type AppConfig struct {
 
 func GetFlock() *flock.Flock {
 	db_file := filepath.Join(SocksPath, "db.json")
-	return flock.New(db_file)
+	// 文件不存在时由flock创建，默认0600会让其他用户无法读取
+	return flock.New(db_file, flock.SetPermissions(0644))
 }
 
 func LoadDB() ([]*AppConfig, error) {

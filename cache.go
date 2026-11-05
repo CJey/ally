@@ -1,6 +1,7 @@
 package ally
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -108,6 +109,7 @@ func (acb *allyCacheBuckets) Bucket(ns string) CacheInterface {
 	}
 }
 
+// 存取都用副本，与ally模式经gRPC传值的语义一致
 type simCache struct {
 	ns     string
 	bucket *cache.Cache
@@ -115,9 +117,9 @@ type simCache struct {
 
 func (sc *simCache) Set(key string, val []byte, ttl ...time.Duration) {
 	if len(ttl) == 0 {
-		sc.bucket.Set(key, val, 0)
+		sc.bucket.Set(key, bytes.Clone(val), 0)
 	} else {
-		sc.bucket.Set(key, val, ttl[0])
+		sc.bucket.Set(key, bytes.Clone(val), ttl[0])
 	}
 }
 func (sc *simCache) SetString(key string, val string, ttl ...time.Duration) {
@@ -142,7 +144,7 @@ func (sc *simCache) SetMessage(key string, raw proto.Message, ttl ...time.Durati
 
 func (sc *simCache) Get(key string) (val []byte, found bool) {
 	if v, ok := sc.bucket.Get(key); ok {
-		return v.([]byte), true
+		return bytes.Clone(v.([]byte)), true
 	}
 	return nil, false
 }
@@ -181,14 +183,14 @@ func (sc *simCache) Keys() (keys []string) {
 }
 
 func (sc *simCache) Count() (count uint64) {
-	return uint64(sc.bucket.ItemCount())
+	return uint64(len(sc.bucket.Items())) // ItemCount含已过期未清理的项
 }
 
 func (sc *simCache) Items() (items map[string][]byte) {
 	_items := sc.bucket.Items()
 	items = make(map[string][]byte, len(_items))
 	for key, _item := range _items {
-		items[key] = _item.Object.([]byte)
+		items[key] = bytes.Clone(_item.Object.([]byte))
 	}
 	return items
 }
@@ -212,10 +214,11 @@ type allyCache struct {
 func (ac *allyCache) Set(key string, val []byte, ttl ...time.Duration) {
 	req := &pb.CacheSetRequest{Ns: ac.ns, Key: key, Val: val}
 	if len(ttl) > 0 && ttl[0] > 0 {
-		req.Ttl = uint64(ttl[0] / time.Millisecond)
+		// 不足1ms按1ms计，截断成0会变成永不过期
+		req.Ttl = uint64(max(ttl[0], time.Millisecond) / time.Millisecond)
 	}
 	if _, err := ac.ally().CacheSet(context.Background(), req); err != nil {
-		panic(runtimeError(err))
+		panic(rpcError(err))
 	}
 }
 func (ac *allyCache) SetString(key string, val string, ttl ...time.Duration) {
@@ -241,7 +244,7 @@ func (ac *allyCache) SetMessage(key string, raw proto.Message, ttl ...time.Durat
 func (ac *allyCache) Get(key string) (val []byte, found bool) {
 	req := &pb.CacheGetRequest{Ns: ac.ns, Key: key}
 	if rep, err := ac.ally().CacheGet(context.Background(), req); err != nil {
-		panic(runtimeError(err))
+		panic(rpcError(err))
 	} else {
 		return rep.Val, rep.Found
 	}
@@ -270,14 +273,14 @@ func (ac *allyCache) GetMessage(key string, raw proto.Message) (found bool, err 
 func (ac *allyCache) Del(key string) {
 	req := &pb.CacheDelRequest{Ns: ac.ns, Key: key}
 	if _, err := ac.ally().CacheDel(context.Background(), req); err != nil {
-		panic(runtimeError(err))
+		panic(rpcError(err))
 	}
 }
 
 func (ac *allyCache) Keys() (keys []string) {
 	req := &pb.CacheKeysRequest{Ns: ac.ns}
 	if rep, err := ac.ally().CacheKeys(context.Background(), req); err != nil {
-		panic(runtimeError(err))
+		panic(rpcError(err))
 	} else {
 		return rep.Keys
 	}
@@ -286,7 +289,7 @@ func (ac *allyCache) Keys() (keys []string) {
 func (ac *allyCache) Count() (count uint64) {
 	req := &pb.CacheCountRequest{Ns: ac.ns}
 	if rep, err := ac.ally().CacheCount(context.Background(), req); err != nil {
-		panic(runtimeError(err))
+		panic(rpcError(err))
 	} else {
 		return rep.Count
 	}
@@ -295,7 +298,7 @@ func (ac *allyCache) Count() (count uint64) {
 func (ac *allyCache) Items() (items map[string][]byte) {
 	req := &pb.CacheItemsRequest{Ns: ac.ns}
 	if rep, err := ac.ally().CacheItems(context.Background(), req); err != nil {
-		panic(runtimeError(err))
+		panic(rpcError(err))
 	} else {
 		return rep.Items
 	}
@@ -304,14 +307,14 @@ func (ac *allyCache) Items() (items map[string][]byte) {
 func (ac *allyCache) Flush() {
 	req := &pb.CacheFlushRequest{Ns: ac.ns}
 	if _, err := ac.ally().CacheFlush(context.Background(), req); err != nil {
-		panic(runtimeError(err))
+		panic(rpcError(err))
 	}
 }
 
 func (ac *allyCache) Exists(key string) (found bool) {
 	req := &pb.CacheExistsRequest{Ns: ac.ns, Key: key}
 	if rep, err := ac.ally().CacheExists(context.Background(), req); err != nil {
-		panic(runtimeError(err))
+		panic(rpcError(err))
 	} else {
 		return rep.Found
 	}

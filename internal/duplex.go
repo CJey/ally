@@ -5,12 +5,15 @@ import (
 	"encoding/binary"
 	"io"
 	"net"
+	"sync"
+	"time"
 )
 
 const (
 	_DUPLEX_MAGIC_PREFIX = "ALLY_UNIX_SOCK" // 14bytes + 2bytes type
 	_CONN_TYPE_DATA_RPC  = uint16(0)
 	_CONN_TYPE_CTRL_FD   = uint16(1)
+	HANDSHAKE_TIMEOUT    = 3 * time.Second
 )
 
 func sendMagic(conn net.Conn, tp uint16) error {
@@ -38,38 +41,71 @@ func DuplexConnCtrlFd(conn net.Conn) error {
 type UnixListener struct {
 	*net.UnixListener
 
-	// HijackCtrlFd 允许从连接中分类控制信道
+	// HijackCtrlFd 允许从连接中分类控制信道，会被并发调用
 	HijackCtrlFd func(*net.UnixConn)
+
+	once  sync.Once
+	conns chan net.Conn
+	done  chan struct{}
+	err   error
 }
 
 // Accept 获取新连接，如果是数据信道，则返回上层共grpc使用，如果是控制信道，则交给HijackCtrlFd处理
 func (l *UnixListener) Accept() (net.Conn, error) {
+	l.once.Do(l.serve)
+	select {
+	case conn := <-l.conns:
+		return conn, nil
+	case <-l.done:
+		return nil, l.err
+	}
+}
+
+// 握手逐连接并发且限时，不发数据的连接不能阻塞后续连接
+func (l *UnixListener) serve() {
+	l.conns, l.done = make(chan net.Conn), make(chan struct{})
+	go func() {
+		var delay time.Duration
+		for {
+			conn, err := l.UnixListener.Accept()
+			if err == nil {
+				delay = 0
+				go l.handshake(conn.(*net.UnixConn))
+				continue
+			}
+			if ne, ok := err.(interface{ Temporary() bool }); ok && ne.Temporary() {
+				delay = min(max(2*delay, 5*time.Millisecond), time.Second)
+				time.Sleep(delay)
+				continue
+			}
+			l.err = err
+			close(l.done)
+			return
+		}
+	}()
+}
+
+func (l *UnixListener) handshake(uconn *net.UnixConn) {
+	tconn := TLSServerConn(uconn)
 	magic := make([]byte, 16)
-	for {
-		conn, err := l.UnixListener.Accept()
-		if err != nil {
-			return conn, err
-		}
+	uconn.SetDeadline(time.Now().Add(HANDSHAKE_TIMEOUT))
+	if _, err := io.ReadFull(tconn, magic); err != nil || string(magic[:14]) != _DUPLEX_MAGIC_PREFIX {
+		tconn.Close()
+		return
+	}
+	uconn.SetDeadline(time.Time{})
 
-		uconn := conn.(*net.UnixConn)
-		tconn := TLSServerConn(uconn)
-
-		if _, err := io.ReadFull(tconn, magic); err != nil {
-			tconn.Close()
-			continue
-		} else if string(magic[:14]) != _DUPLEX_MAGIC_PREFIX {
-			tconn.Close()
-			continue
-		}
-
-		if tp := binary.BigEndian.Uint16(magic[14:16]); tp == _CONN_TYPE_DATA_RPC {
-			pid, uid, _ := GetUCred(uconn)
-			return newUnixConn(tconn, pid, uid), nil
-		} else if tp == _CONN_TYPE_CTRL_FD && l.HijackCtrlFd != nil {
-			l.HijackCtrlFd(uconn)
-		} else {
+	if tp := binary.BigEndian.Uint16(magic[14:16]); tp == _CONN_TYPE_DATA_RPC {
+		pid, uid, _ := GetUCred(uconn)
+		select {
+		case l.conns <- newUnixConn(tconn, pid, uid):
+		case <-l.done:
 			tconn.Close()
 		}
+	} else if tp == _CONN_TYPE_CTRL_FD && l.HijackCtrlFd != nil {
+		l.HijackCtrlFd(uconn)
+	} else {
+		tconn.Close()
 	}
 }
 

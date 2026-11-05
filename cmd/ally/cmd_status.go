@@ -23,9 +23,9 @@ func init() {
 		PersistentPreRun: parseEnvConfig,
 	}
 
-	cmd.PersistentFlags().Bool("pid", false, "found app by pid")
-	cmd.PersistentFlags().Bool("name", false, "found app by name")
-	cmd.PersistentFlags().Bool("family", false, "found app by family")
+	cmd.PersistentFlags().Bool("pid", false, "find app by pid")
+	cmd.PersistentFlags().Bool("name", false, "find app by name")
+	cmd.PersistentFlags().Bool("family", false, "find app by family")
 
 	RootCommand.AddCommand(cmd)
 }
@@ -42,7 +42,7 @@ func runStatus(cmd *cobra.Command, args []string) {
 }
 
 func statusApp(apps []*pb.GetAppInfoResponse) {
-	if len(apps) > 1 {
+	if len(apps) != 1 {
 		Exit(1, "ERROR[Ally]: Only one app should be matched, but %d\n", len(apps))
 	}
 

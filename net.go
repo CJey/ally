@@ -2,9 +2,10 @@ package ally
 
 import (
 	"net"
+	"strings"
 )
 
-// Listen 通过Ally获得Listener，当前支持TCP、Unix Packet
+// Listen 通过Ally获得Listener，当前支持TCP、Unix、Unixpacket
 func Listen(network, address string) (net.Listener, error) {
 	switch network {
 	case "tcp", "tcp4", "tcp6":
@@ -46,8 +47,7 @@ func ListenTCP(network string, laddr *net.TCPAddr) (*net.TCPListener, error) {
 
 // CloseTCP 关掉经由Ally创建的TCPListener
 func CloseTCP(lsn *net.TCPListener) error {
-	var laddr = lsn.Addr()
-	if err := _CloseSocket(laddr.Network(), laddr.String()); err != nil {
+	if err := _CloseSocket(lsn); err != nil {
 		return err
 	}
 	return lsn.Close()
@@ -64,16 +64,16 @@ func ListenUnix(network string, laddr *net.UnixAddr) (*net.UnixListener, error) 
 
 // CloseUnix 关掉经由Ally创建的UnixListener
 func CloseUnix(lsn *net.UnixListener) error {
-	var laddr = lsn.Addr()
-	if err := _CloseSocket(laddr.Network(), laddr.String()); err != nil {
+	if err := _CloseSocket(lsn); err != nil {
 		return err
 	}
 	return lsn.Close()
 }
 
-// ListenPacket 通过Ally获得PacketConn，目前支持UDPConn、IPConn、Unixgram
+// ListenPacket 通过Ally获得PacketConn，目前支持UDPConn、IPConn、Unixgram，IP须带协议号(如ip4:icmp)且app须以root运行
 func ListenPacket(network, address string) (net.PacketConn, error) {
-	switch network {
+	afnet, _, _ := strings.Cut(network, ":")
+	switch afnet {
 	case "udp", "udp4", "udp6":
 		if laddr, err := net.ResolveUDPAddr(network, address); err != nil {
 			return nil, err
@@ -122,8 +122,7 @@ func ListenUDP(network string, laddr *net.UDPAddr) (*net.UDPConn, error) {
 
 // CloseUDP 关闭经由Ally创建的UDPConn
 func CloseUDP(conn *net.UDPConn) error {
-	var laddr = conn.LocalAddr()
-	if err := _CloseSocket(laddr.Network(), laddr.String()); err != nil {
+	if err := _CloseSocket(conn); err != nil {
 		return err
 	}
 	return conn.Close()
@@ -140,8 +139,7 @@ func ListenIP(network string, laddr *net.IPAddr) (*net.IPConn, error) {
 
 // CloseIP 关闭经由Ally创建的IPConn
 func CloseIP(conn *net.IPConn) error {
-	var laddr = conn.LocalAddr()
-	if err := _CloseSocket(laddr.Network(), laddr.String()); err != nil {
+	if err := _CloseSocket(conn); err != nil {
 		return err
 	}
 	return conn.Close()
@@ -158,8 +156,7 @@ func ListenUnixgram(network string, laddr *net.UnixAddr) (*net.UnixConn, error) 
 
 // CloseUnixgram 关闭经由Ally创建的UnixConn
 func CloseUnixgram(conn *net.UnixConn) error {
-	var laddr = conn.LocalAddr()
-	if err := _CloseSocket(laddr.Network(), laddr.String()); err != nil {
+	if err := _CloseSocket(conn); err != nil {
 		return err
 	}
 	return conn.Close()

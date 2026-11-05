@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"syscall"
 	"time"
@@ -19,9 +20,9 @@ func init() {
 		PersistentPreRun: parseEnvConfig,
 	}
 
-	cmd.PersistentFlags().Bool("pid", false, "found app by pid")
-	cmd.PersistentFlags().Bool("name", false, "found app by name")
-	cmd.PersistentFlags().Bool("family", false, "found app by family")
+	cmd.PersistentFlags().Bool("pid", false, "find app by pid")
+	cmd.PersistentFlags().Bool("name", false, "find app by name")
+	cmd.PersistentFlags().Bool("family", false, "find app by family")
 
 	RootCommand.AddCommand(cmd)
 }
@@ -38,7 +39,7 @@ func runStop(cmd *cobra.Command, args []string) {
 			continue
 		}
 		if p, err := os.FindProcess(int(app.Pid)); err == nil {
-			if err := p.Signal(syscall.SIGTERM); err != nil {
+			if err := p.Signal(syscall.SIGTERM); err != nil && !errors.Is(err, os.ErrProcessDone) {
 				Exit(2, "ERROR[Ally]: Send term to app [%s]'s ally[%d] failed, %s\n",
 					app.Info.Name, app.Pid, err)
 			}

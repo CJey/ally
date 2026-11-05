@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"syscall"
 	"time"
@@ -19,9 +20,9 @@ func init() {
 		PersistentPreRun: parseEnvConfig,
 	}
 
-	cmd.PersistentFlags().Bool("pid", false, "found app by pid")
-	cmd.PersistentFlags().Bool("name", false, "found app by name")
-	cmd.PersistentFlags().Bool("family", false, "found app by family")
+	cmd.PersistentFlags().Bool("pid", false, "find app by pid")
+	cmd.PersistentFlags().Bool("name", false, "find app by name")
+	cmd.PersistentFlags().Bool("family", false, "find app by family")
 
 	RootCommand.AddCommand(cmd)
 }
@@ -38,20 +39,20 @@ func runKill(cmd *cobra.Command, args []string) {
 			continue
 		}
 		if p, err := os.FindProcess(int(app.Pid)); err == nil {
-			if err := p.Signal(syscall.SIGKILL); err != nil {
+			if err := p.Signal(syscall.SIGKILL); err != nil && !errors.Is(err, os.ErrProcessDone) {
 				Exit(2, "ERROR[Ally]: Send kill to app [%s]'s ally[%d] failed, %s\n",
 					app.Info.Name, app.Pid, err)
 			}
 		}
 		for _, inst := range app.Info.Instances {
 			if p, err := os.FindProcess(int(inst.Pid)); err == nil {
-				if err := p.Signal(syscall.SIGKILL); err != nil {
+				if err := p.Signal(syscall.SIGKILL); err != nil && !errors.Is(err, os.ErrProcessDone) {
 					Exit(2, "ERROR[Ally]: Send kill to app [%s]'s instance[%d] failed, %s\n",
 						app.Info.Name, inst.Pid, err)
 				}
 			}
 		}
-		if err := os.Remove(app.Sock); err != nil {
+		if err := os.Remove(app.Sock); err != nil && !errors.Is(err, os.ErrNotExist) {
 			Exit(2, "ERROR[Ally]: Remove app [%s]'s sock file[%s] failed, %s\n",
 				app.Info.Name, app.Sock, err)
 		}
@@ -62,8 +63,8 @@ func runKill(cmd *cobra.Command, args []string) {
 	// refresh
 	_, apps, all := FindApp(cmd, args, true)
 	if len(apps) > 0 {
-		listApp(all)
-	} else {
 		listApp(apps)
+	} else {
+		listApp(all)
 	}
 }

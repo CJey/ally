@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"syscall"
 	"time"
@@ -22,9 +23,9 @@ func init() {
 	}
 
 	cmd.PersistentFlags().Bool("shutup", false, "do restart")
-	cmd.PersistentFlags().Bool("pid", false, "found app by pid")
-	cmd.PersistentFlags().Bool("name", false, "found app by name")
-	cmd.PersistentFlags().Bool("family", false, "found app by family")
+	cmd.PersistentFlags().Bool("pid", false, "find app by pid")
+	cmd.PersistentFlags().Bool("name", false, "find app by name")
+	cmd.PersistentFlags().Bool("family", false, "find app by family")
 
 	RootCommand.AddCommand(cmd)
 }
@@ -65,7 +66,7 @@ outer:
 			continue
 		}
 		if p, err := os.FindProcess(int(app.Pid)); err == nil {
-			if err = p.Signal(syscall.SIGTERM); err != nil {
+			if err = p.Signal(syscall.SIGTERM); err != nil && !errors.Is(err, os.ErrProcessDone) {
 				Exit(2, "ERROR[Ally]: Send term to app [%s]'s ally[%d] failed, %s\n",
 					app.Info.Name, app.Pid, err)
 			}
@@ -101,21 +102,11 @@ outer:
 	}
 	lock.Unlock()
 
+	// 已持久化的按db配置重启，未持久化的沿用运行时参数
 	for _, app := range apps {
 		for _, cfg := range cfgs {
 			if app.Info.Name == cfg.Name {
-				app = &pb.GetAppInfoResponse{
-					Info: &pb.AppInfo{
-						Name:   cfg.Name,
-						Family: cfg.Family,
-						Bin:    cfg.Bin,
-						Pwd:    cfg.Pwd,
-						Path:   cfg.Path,
-						Envs:   cfg.Envs,
-						Args:   cfg.Args,
-						Stat:   pb.AppStat_STOPPED,
-					},
-				}
+				app = ConvertConfigToApp(cfg)
 				break
 			}
 		}
@@ -126,7 +117,5 @@ outer:
 
 	time.Sleep(RefreshWait)
 
-	// 未持久化的app要使用运行时参数重启
-	_, apps, _ = FindApp(cmd, args, false)
-	listApp(apps)
+	listApp(findAppByNames(names))
 }

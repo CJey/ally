@@ -58,7 +58,8 @@ __build_magic() {
 
     if which git 2>/dev/null > /dev/null && git status 2>/dev/null >/dev/null; then
         _upstream="$(git rev-parse --abbrev-ref @{upstream} 2>/dev/null | cut -d/ -f1)"
-        [ -z "$GIT_UPSTREAM" ] && _upstream="origin"
+        [ -n "$GIT_UPSTREAM" ] && _upstream="$GIT_UPSTREAM"
+        [ -z "$_upstream" ] && _upstream="origin"
         GIT_REPO="$(git config --get remote.$_upstream.url 2>/dev/null)"
         GIT_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
 
@@ -185,7 +186,8 @@ if [ -z "$MAINFILE" ]; then
     MAINFILE="$PJROOT/cmd/$APPNAME/*.go"
 fi
 [ -z "$TARGET" ] && TARGET="$PJROOT/release/bin/$APPNAME"
-if [ ! -x "$TARGET" ] || ! grep -q "$BUILD_MAGIC" "$TARGET" 2>/dev/null; then
+# 非git目录没有BUILD_MAGIC，grep空串恒为真，只能每次重编
+if [ -z "$BUILD_MAGIC" ] || [ ! -x "$TARGET" ] || ! grep -q "$BUILD_MAGIC" "$TARGET" 2>/dev/null; then
     __env
     __build
 fi

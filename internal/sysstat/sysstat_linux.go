@@ -37,7 +37,7 @@ var clkTck = func() float64 {
 }()
 
 type record struct {
-	utime, stime, uptime float64
+	start, utime, stime, uptime float64
 }
 
 var mu sync.Mutex
@@ -77,6 +77,9 @@ func getStat(pid int) (*SysInfo, error) {
 	mu.Lock()
 	defer mu.Unlock()
 	var last = histories[pid]
+	if last.start != start { // pid已被复用，旧记录属于另一个进程
+		last = record{}
+	}
 
 	var total = (utime - last.utime + stime - last.stime) / clkTck
 	var seconds = start - uptime
@@ -87,10 +90,16 @@ func getStat(pid int) (*SysInfo, error) {
 	if seconds == 0 {
 		seconds = 1
 	}
-	histories[pid] = record{utime: utime, stime: stime, uptime: uptime}
+	histories[pid] = record{start: start, utime: utime, stime: stime, uptime: uptime}
 
 	return &SysInfo{
 		CPU:    total / seconds * 100,
 		Memory: rss * pageSize,
 	}, nil
+}
+
+func forget(pid int) {
+	mu.Lock()
+	delete(histories, pid)
+	mu.Unlock()
 }

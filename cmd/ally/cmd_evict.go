@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"syscall"
 	"time"
@@ -39,20 +40,20 @@ func runEvict(cmd *cobra.Command, args []string) {
 				continue
 			}
 			if p, err := os.FindProcess(int(app.Pid)); err == nil {
-				if err := p.Signal(syscall.SIGKILL); err != nil {
+				if err := p.Signal(syscall.SIGKILL); err != nil && !errors.Is(err, os.ErrProcessDone) {
 					Exit(2, "ERROR[Ally]: Send kill to app [%s]'s ally[%d] failed, %s\n",
 						app.Info.Name, app.Pid, err)
 				}
 			}
 			for _, inst := range app.Info.Instances {
 				if p, err := os.FindProcess(int(inst.Pid)); err == nil {
-					if err := p.Signal(syscall.SIGKILL); err != nil {
+					if err := p.Signal(syscall.SIGKILL); err != nil && !errors.Is(err, os.ErrProcessDone) {
 						Exit(2, "ERROR[Ally]: Send kill to app [%s]'s instance[%d] failed, %s\n",
 							app.Info.Name, inst.Pid, err)
 					}
 				}
 			}
-			if err := os.Remove(app.Sock); err != nil {
+			if err := os.Remove(app.Sock); err != nil && !errors.Is(err, os.ErrNotExist) {
 				Exit(2, "ERROR[Ally]: Remove app [%s]'s sock file[%s] failed, %s\n",
 					app.Info.Name, app.Sock, err)
 			}

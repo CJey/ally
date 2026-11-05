@@ -34,6 +34,7 @@ message ListenSocketResponse {
         EC_BAD_ADDRESS = 2; // 地址格式问题
         EC_LISTEN      = 3; // listen失败
         EC_SEND        = 4; // 发送fd给app失败
+        EC_CLOSING     = 5; // app正在退出，不再受理新的监听
     }
     Code   code  = 1;
     string error = 2;
@@ -49,6 +50,7 @@ message CloseSocketResponse {
         EC_OK          = 0;
         EC_PERMISSION  = 1; // 仅允许app实例访问此接口
         EC_BAD_ADDRESS = 2; // 地址格式问题
+        EC_NOT_FOUND   = 3; // 本实例未监听此地址
     }
     Code   code  = 1;
     string error = 2;
@@ -60,8 +62,9 @@ message ReloadAppRequest {
 message ReloadAppResponse {
     enum Code {
         EC_OK          = 0;
-        EC_PERMISSION  = 1; // 仅允许最新app实例访问此接口
+        EC_PERMISSION  = 1; // 仅允许app实例访问此接口
         EC_RELOAD      = 2;
+        EC_NOT_MAIN    = 3; // 仅主实例可发起，其余实例的请求被忽略
     }
     Code   code  = 1;
     string error = 2;
@@ -124,8 +127,8 @@ message InstanceInfo {
     string family     = 6; // app的家族
     int64  start_time = 7; // app实例的启动时间戳(纳秒)
 
-    uint64 tasks       = 8; // app实例上报不可中断的任务数量
-    string commit      = 9; // app实例上报的版本commit
+    uint64 tasks       = 8;  // app实例上报不可中断的任务数量
+    string commit      = 9;  // app实例上报的版本commit
     string version     = 10; // app实例上报的版本号
     string description = 11; // app实例上报的动态描述文字
 
@@ -174,7 +177,6 @@ message AppInfo {
 
     bool enable    = 100; // bypass, 标记是否需要在ally wakeup时启动，此值恒为false
     bool ephemeral = 101; // bypass, 标记是否是临时app（未被invite），此值恒为true
-
 }
 
 message GetAppInfoRequest {

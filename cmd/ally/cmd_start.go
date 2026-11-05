@@ -27,9 +27,9 @@ func init() {
 		PersistentPreRun: parseEnvConfig,
 	}
 
-	cmd.PersistentFlags().Bool("pid", false, "found app by pid")
-	cmd.PersistentFlags().Bool("name", false, "found app by name")
-	cmd.PersistentFlags().Bool("family", false, "found app by family")
+	cmd.PersistentFlags().Bool("pid", false, "find app by pid")
+	cmd.PersistentFlags().Bool("name", false, "find app by name")
+	cmd.PersistentFlags().Bool("family", false, "find app by family")
 
 	RootCommand.AddCommand(cmd)
 }
@@ -78,6 +78,7 @@ func StartApp(app *pb.GetAppInfoResponse) error {
 	if err != nil {
 		return fmt.Errorf("open stdout & stderr log file failed, %w", err)
 	}
+	defer file.Close() // 子进程持有自己的副本
 
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
@@ -89,7 +90,10 @@ func StartApp(app *pb.GetAppInfoResponse) error {
 
 	// let all fds not be inherited
 	filepath.WalkDir(fmt.Sprintf("/proc/%d/fd", os.Getpid()),
-		func(_ string, d fs.DirEntry, _ error) error {
+		func(_ string, d fs.DirEntry, err error) error {
+			if err != nil { // 没有/proc(如macOS)时d为nil
+				return err
+			}
 			if fd, _ := strconv.ParseUint(d.Name(), 10, 64); fd > 2 {
 				if val, err := unix.FcntlInt(uintptr(fd), syscall.F_GETFD, 0); err == nil {
 					if (val & syscall.FD_CLOEXEC) == 0 {

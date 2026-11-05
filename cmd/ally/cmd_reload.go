@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"syscall"
 	"time"
@@ -19,9 +20,9 @@ func init() {
 		PersistentPreRun: parseEnvConfig,
 	}
 
-	cmd.PersistentFlags().Bool("pid", false, "found app by pid")
-	cmd.PersistentFlags().Bool("name", false, "found app by name")
-	cmd.PersistentFlags().Bool("family", false, "found app by family")
+	cmd.PersistentFlags().Bool("pid", false, "find app by pid")
+	cmd.PersistentFlags().Bool("name", false, "find app by name")
+	cmd.PersistentFlags().Bool("family", false, "find app by family")
 
 	RootCommand.AddCommand(cmd)
 }
@@ -33,14 +34,16 @@ func runReload(cmd *cobra.Command, args []string) {
 	}
 
 	var _, apps, _ = FindApp(cmd, args, false)
+	var names []string
 	for _, app := range apps {
+		names = append(names, app.Info.Name)
 		if app.Pid == 0 {
 			if err := StartApp(app); err != nil {
 				Exit(2, "ERROR[Ally]: Start app [%s] failed, %s\n", app.Info.Name, err)
 			}
 		} else {
 			if p, err := os.FindProcess(int(app.Pid)); err == nil {
-				if err := p.Signal(syscall.SIGUSR2); err != nil {
+				if err := p.Signal(syscall.SIGUSR2); err != nil && !errors.Is(err, os.ErrProcessDone) {
 					Exit(2, "ERROR[Ally]: Send usr2 to app [%s]'s ally[%d] failed, %s\n",
 						app.Info.Name, app.Pid, err)
 				}
@@ -51,6 +54,5 @@ func runReload(cmd *cobra.Command, args []string) {
 	time.Sleep(RefreshWait)
 
 	// refresh
-	_, apps, _ = FindApp(cmd, args, false)
-	listApp(apps)
+	listApp(findAppByNames(names))
 }

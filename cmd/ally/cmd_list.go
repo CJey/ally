@@ -66,7 +66,7 @@ func runList(cmd *cobra.Command, args []string) {
 }
 
 func FindApp(cmd *cobra.Command, args []string, emptyok bool) (any string, apps, all []*pb.GetAppInfoResponse) {
-	any = args[0]
+	any, all = args[0], GetAppInfos()
 	var by_pid, _ = cmd.PersistentFlags().GetBool("pid")
 	var by_name, _ = cmd.PersistentFlags().GetBool("name")
 	var by_family, _ = cmd.PersistentFlags().GetBool("family")
@@ -139,6 +139,16 @@ func findAppByName(name string, apps []*pb.GetAppInfoResponse) []*pb.GetAppInfoR
 	res := []*pb.GetAppInfoResponse{}
 	for _, app := range apps {
 		if app.Info.Name == name {
+			res = append(res, app)
+		}
+	}
+	return res
+}
+
+// findAppByNames 刷新列表用：重启后pid会变，旧实例也可能已退出，只能按名称找回
+func findAppByNames(names []string) (res []*pb.GetAppInfoResponse) {
+	for _, app := range GetAppInfos() {
+		if slices.Contains(names, app.Info.Name) {
 			res = append(res, app)
 		}
 	}
@@ -551,6 +561,7 @@ func GetAllyConn(sock string) (*grpc.ClientConn, error) {
 			} else {
 				tconn := internal.TLSClientConn(conn.(*net.UnixConn))
 				if err := internal.DuplexConnDataRpc(tconn); err != nil {
+					tconn.Close()
 					return nil, err
 				} else {
 					return tconn, nil

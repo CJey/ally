@@ -9,4 +9,4 @@ export MAINFILE="$ROOT/cmd/ally/*.go"
 export DEVELOP=1
 
 # build && run
-"$ROOT/release/build" "$APPNAME" "$TARGET" && "$TARGET" $*
+"$ROOT/release/build" "$APPNAME" "$TARGET" && "$TARGET" "$@"

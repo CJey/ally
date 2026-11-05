@@ -14,3 +14,8 @@ type SysInfo struct {
 func GetStat(pid int) (*SysInfo, error) {
 	return getStat(pid)
 }
+
+// Forget 进程退出后丢弃其采样记录
+func Forget(pid int) {
+	forget(pid)
+}

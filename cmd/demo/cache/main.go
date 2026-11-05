@@ -46,12 +46,12 @@ func Verify() {
 
 	cache.Set(key, []byte(value))
 	if val, ok := cache.Get(key); !ok || string(val) != value {
-		panic(fmt.Errorf("set value dismatched with get"))
+		panic(fmt.Errorf("set value mismatched with get"))
 	}
 
 	cache.Del(key)
 	if _, ok := cache.Get(key); ok {
-		panic(fmt.Errorf("del not workd"))
+		panic(fmt.Errorf("del did not work"))
 	}
 
 	fmt.Printf("Verify Set/Get/Del ok\n")

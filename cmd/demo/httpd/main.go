@@ -24,7 +24,7 @@ var (
 func main() {
 	ally.Version, ally.Commit = Version, Commit
 	ally.DynamicHook = func() (tasks uint64, desc string) {
-		return uint64(Tasks), ""
+		return uint64(atomic.LoadInt64(&Tasks)), ""
 	}
 
 	lsn, err := ally.Listen("tcp", "127.0.0.1:8080")
@@ -47,7 +47,7 @@ func main() {
 	}
 	ally.Ready()
 
-	fmt.Printf("%s[%d]: Runing at tcp://%s\n", ally.Appname, ally.ID, lsn.Addr().String())
+	fmt.Printf("%s[%d]: Running at tcp://%s\n", ally.Appname, ally.ID, lsn.Addr().String())
 	<-done.Yes()
 }
 
@@ -65,7 +65,7 @@ func Handler(resp http.ResponseWriter, req *http.Request) {
 	var buf = bytes.NewBuffer(nil)
 	fmt.Printf("%s Request %s from %s\n", pre(), req.URL.Path, req.RemoteAddr)
 	defer func() {
-		fmt.Printf("%s Responsed to %s\n", pre(), req.RemoteAddr)
+		fmt.Printf("%s Responded to %s\n", pre(), req.RemoteAddr)
 	}()
 
 	buf.WriteString(fmt.Sprintf("%s sleep 100ms first\n", pre()))

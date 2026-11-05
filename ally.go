@@ -3,6 +3,7 @@ package ally
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -13,6 +14,8 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/cjey/ally/internal"
 	pb "github.com/cjey/ally/proto"
@@ -22,8 +25,9 @@ var (
 	_Mutex     sync.Mutex
 	_Client    pb.AllyClient
 	_FDChannel *net.UnixConn
-	_FileChan  = make(chan *os.File, 0)
+	_FileChan  = make(chan *os.File, 1) // rpc在fd发出后失败时无人接收，有缓冲recvFd才不会卡住
 	_Ready     atomic.Bool
+	_Gone      = make(chan struct{}) // fd信道断开即视为ally已退出，实例随之自行退出
 )
 
 var (
@@ -43,12 +47,13 @@ var (
 	Commit  string
 	Version string
 
-	// [*core*] DynamicHook相对于Commit和Version，允许实例动态的向Ally管理程序报告自身的任务情况已经一些其他的动态信息
+	// [*core*] DynamicHook相对于Commit和Version，允许实例动态的向Ally管理程序报告自身的任务情况以及一些其他的动态信息
 	// 这些信息，包括Commit和Version都会在ally命令行中被呈现
 	DynamicHook func() (tasks uint64, description string)
 
 	// [*core*] 当本实例每收到一次要求优雅停机的信号时，就会call一次ExitHook，实例需要在其中完成服务优雅停机的过程
 	// 如果不配置此Hook，Ally默认直接做Exit(0)处理，否则只要配置了此Hook，Ally会完全把控制权交给实例自身，不做其他多余处理
+	// 调用Ready之前收到信号时按未配置处理
 	ExitHook func()
 )
 
@@ -57,8 +62,24 @@ var (
 	HeartbeatInterval = 1 * time.Second
 )
 
+// 后台goroutine只读Ready时发布的快照，直接读上面的包级变量会与业务代码的赋值构成数据竞争
+type settings struct {
+	commit, version string
+	dynamicHook     func() (uint64, string)
+	exitHook        func()
+	interval        time.Duration
+}
+
+var _Settings atomic.Pointer[settings]
+
 // [*core*] Ready 用于向Ally通报本实例的准备工作已经全部准备就绪，可以接受并处理业务请求了
+// Commit、Version、DynamicHook、ExitHook、HeartbeatInterval在此时生效，之后修改须再次调用Ready
 func Ready() {
+	_Settings.Store(&settings{
+		commit: Commit, version: Version,
+		dynamicHook: DynamicHook, exitHook: ExitHook,
+		interval: HeartbeatInterval,
+	})
 	_Ready.Store(true)
 	_Heartbeat()
 }
@@ -156,6 +177,7 @@ func recvFd() {
 	for {
 		file, err := internal.RecvFile(_FDChannel)
 		if err != nil {
+			close(_Gone)
 			suicide()
 			return
 		}
@@ -174,8 +196,8 @@ func watchSignal() {
 				ReloadApp()
 				continue
 			}
-			if ExitHook != nil {
-				ExitHook()
+			if s := _Settings.Load(); s != nil && s.exitHook != nil {
+				s.exitHook()
 			} else {
 				os.Exit(0)
 			}
@@ -187,26 +209,52 @@ func heartbeat() {
 	for {
 		_Heartbeat()
 
-		if HeartbeatInterval <= 0 {
-			time.Sleep(1 * time.Second)
-		} else {
-			time.Sleep(HeartbeatInterval)
+		var interval = time.Second
+		if s := _Settings.Load(); s != nil && s.interval > 0 {
+			interval = s.interval
+		}
+		select {
+		case <-_Gone:
+			return
+		case <-time.After(interval):
 		}
 	}
 }
 
+var errAllyGone = errors.New("ally is gone")
+
+// allyGone rpc失败时确认ally是否已退出，rpc可能先于fd信道察觉断开，故稍候
+func allyGone() bool {
+	select {
+	case <-_Gone:
+		return true
+	case <-time.After(time.Second):
+		return false
+	}
+}
+
+// runtimeError rpc本身失败时探测ally是否存活；ally已应答的拒绝不必经过此处
 func runtimeError(origin error) error {
 	// test ally
 	addr_grpc := _FDChannel.RemoteAddr().String()
 	raddr, _ := net.ResolveUnixAddr("unix", addr_grpc)
-	if conn, err := net.DialUnix("unix", nil, raddr); err != nil {
+	conn, err := net.DialUnix("unix", nil, raddr)
+	if err != nil {
 		return fmt.Errorf("runtime: dial to ally [%s] failed, %w => %s", addr_grpc, err, origin)
-	} else if pid, _, err := internal.GetUCred(conn); err != nil {
+	}
+	defer conn.Close()
+	if pid, _, err := internal.GetUCred(conn); err != nil {
 		return fmt.Errorf("runtime: get ally's pid failed, %w => %s", err, origin)
 	} else if pid != os.Getppid() {
 		return fmt.Errorf("runtime: fake ally, %w", origin)
-	} else {
-		conn.Close()
-		return fmt.Errorf("runtime: ally ok, network err? %w", origin)
 	}
+	return fmt.Errorf("runtime: ally ok, network err? %w", origin)
+}
+
+// rpcError Cache、Atomic、Locker以gRPC错误返回ally的拒绝，不能当作rpc失败去探测ally
+func rpcError(err error) error {
+	if s, ok := status.FromError(err); ok && s.Code() == codes.Unknown {
+		return fmt.Errorf("runtime: rejected by ally, %s", s.Message())
+	}
+	return runtimeError(err)
 }

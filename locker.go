@@ -24,7 +24,7 @@ type LockerInterface interface {
 	RLock()
 	// TryLock尝试获得互斥锁，返回获取结果，如果提供了timeout，则会尝试等待指定的时间
 	TryLock(timeout ...time.Duration) bool
-	// TryLock尝试获得共享锁，返回获取结果，如果提供了timeout，则会尝试等待指定的时间
+	// TryRLock尝试获得共享锁，返回获取结果，如果提供了timeout，则会尝试等待指定的时间
 	TryRLock(timeout ...time.Duration) bool
 
 	// Unlock释放互斥锁
@@ -264,7 +264,7 @@ func (sm *simLocker) TryRLock(timeout ...time.Duration) bool {
 							sm.rhead = pre.next
 						}
 						if sm.rhead == nil {
-							sm.tail = nil
+							sm.rtail = nil
 						} else if sm.rtail == me {
 							sm.rtail = pre
 						}
@@ -284,6 +284,7 @@ func (sm *simLocker) TryRLock(timeout ...time.Duration) bool {
 func (sm *simLocker) Unlock() {
 	sm.mu.Lock()
 	if sm.head == nil || !sm.head.acquired {
+		sm.mu.Unlock() // panic可能被recover，不能带锁
 		panic(fmt.Errorf("runtime: invalid ally.Locker.Unlock call, locker[%s]", sm.name))
 	}
 	sm.head = sm.head.next
@@ -306,6 +307,7 @@ func (sm *simLocker) Unlock() {
 func (sm *simLocker) RUnlock() {
 	sm.mu.Lock()
 	if sm.rhead == nil || !sm.rhead.acquired {
+		sm.mu.Unlock()
 		panic(fmt.Errorf("runtime: invalid ally.Locker.RUnlock call, locker[%s]", sm.name))
 	}
 	sm.rhead = sm.rhead.next
@@ -344,24 +346,25 @@ type allyLocker struct {
 func (am *allyLocker) Lock() {
 	req := &pb.LockerLockRequest{Name: am.name}
 	if _, err := am.ally().LockerLock(context.Background(), req); err != nil {
-		panic(runtimeError(err))
+		panic(rpcError(err))
 	}
 }
 
 func (am *allyLocker) RLock() {
 	req := &pb.LockerRLockRequest{Name: am.name}
 	if _, err := am.ally().LockerRLock(context.Background(), req); err != nil {
-		panic(runtimeError(err))
+		panic(rpcError(err))
 	}
 }
 
 func (am *allyLocker) TryLock(timeout ...time.Duration) bool {
 	req := &pb.LockerTryLockRequest{Name: am.name}
 	if len(timeout) > 0 && timeout[0] > 0 {
-		req.Timeout = uint64(timeout[0] / time.Millisecond)
+		// 不足1ms按1ms计，截断成0会变成不等待
+		req.Timeout = uint64(max(timeout[0], time.Millisecond) / time.Millisecond)
 	}
 	if rep, err := am.ally().LockerTryLock(context.Background(), req); err != nil {
-		panic(runtimeError(err))
+		panic(rpcError(err))
 	} else {
 		return rep.Acquired
 	}
@@ -370,10 +373,10 @@ func (am *allyLocker) TryLock(timeout ...time.Duration) bool {
 func (am *allyLocker) TryRLock(timeout ...time.Duration) bool {
 	req := &pb.LockerTryRLockRequest{Name: am.name}
 	if len(timeout) > 0 && timeout[0] > 0 {
-		req.Timeout = uint64(timeout[0] / time.Millisecond)
+		req.Timeout = uint64(max(timeout[0], time.Millisecond) / time.Millisecond)
 	}
 	if rep, err := am.ally().LockerTryRLock(context.Background(), req); err != nil {
-		panic(runtimeError(err))
+		panic(rpcError(err))
 	} else {
 		return rep.Acquired
 	}
@@ -382,21 +385,21 @@ func (am *allyLocker) TryRLock(timeout ...time.Duration) bool {
 func (am *allyLocker) Unlock() {
 	req := &pb.LockerUnlockRequest{Name: am.name}
 	if _, err := am.ally().LockerUnlock(context.Background(), req); err != nil {
-		panic(runtimeError(err))
+		panic(rpcError(err))
 	}
 }
 
 func (am *allyLocker) RUnlock() {
 	req := &pb.LockerRUnlockRequest{Name: am.name}
 	if _, err := am.ally().LockerRUnlock(context.Background(), req); err != nil {
-		panic(runtimeError(err))
+		panic(rpcError(err))
 	}
 }
 
 func (am *allyLocker) Queues() (r, w int64) {
 	req := &pb.LockerQueuesRequest{Name: am.name}
 	if rep, err := am.ally().LockerQueues(context.Background(), req); err != nil {
-		panic(runtimeError(err))
+		panic(rpcError(err))
 	} else {
 		return rep.R, rep.W
 	}

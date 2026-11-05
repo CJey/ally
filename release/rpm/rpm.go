@@ -69,7 +69,7 @@ func ParseFlags(cmd *cobra.Command, args []string) {
 	case "all", "noarch", "any":
 		f_arch = ""
 	default:
-		exit(100, "ERROR: unsupport arch[%s]\n", f_arch)
+		exit(100, "ERROR: unsupported arch[%s]\n", f_arch)
 	}
 	if err := os.Setenv("GOARCH", f_arch); err != nil {
 		exit(101, "ERROR: set environ GOARCH failed, %s\n", err)
@@ -113,7 +113,7 @@ func Run(cmd *cobra.Command, args []string) {
 	for _, arch := range archs {
 		var pattern = fmt.Sprintf("%s.%s.rpmbuild.*", Appname, arch)
 		ts := time.Now()
-		fmt.Printf("> Buiding... GOOS=%s GOARCH=%s\n", os.Getenv("GOOS"), arch)
+		fmt.Printf("> Building... GOOS=%s GOARCH=%s\n", os.Getenv("GOOS"), arch)
 		fmt.Printf("  App:     %s\n", Appname)
 		fmt.Printf("  Version: %s\n", FullVersion)
 		if f, err := os.CreateTemp("", pattern); err != nil {
@@ -142,6 +142,12 @@ func Run(cmd *cobra.Command, args []string) {
 	// 2. config
 	if f := RPMFileFrom(Root+"/logrotate.conf", "/etc/logrotate.d/"+Appname); true {
 		f.Body = []byte(EnvReplace(string(f.Body)))
+		f.Type = rpmpack.ConfigFile | rpmpack.NoReplaceFile
+		f.Mode = 0100000 | 0644
+		rpm.AddFile(f)
+	}
+	// 预置空库：db.json兼作锁文件，root首次运行前普通用户无权创建
+	if f := RPMFile(DataDir+"/db.json", nil); true {
 		f.Type = rpmpack.ConfigFile | rpmpack.NoReplaceFile
 		f.Mode = 0100000 | 0644
 		rpm.AddFile(f)
@@ -198,8 +204,9 @@ if [ -d /run/systemd/system ]; then
     rm -f /usr/lib/systemd/system/ally-wakeup.service
     cp ${{DataDir}}/ally-wakeup.service /usr/lib/systemd/system/ally-wakeup.service
     systemctl daemon-reload
-    systemctl disable ally-wakeup
-    systemctl enable ally-wakeup
+    if [ $1 -eq 1 ]; then # 仅首次安装启用，升级不动管理员的设置
+        systemctl enable ally-wakeup
+    fi
 else
     rm -f /etc/init.d/ally-wakeup
     cp ${{DataDir}}/ally-wakeup /etc/init.d/ally-wakeup
@@ -208,6 +215,14 @@ fi
 `))
 
 	rpm.AddPreun(EnvReplace(`
+if [ $1 -eq 0 ]; then # 卸载
+    ${{CmdFile}} stop --family all || : # preun失败会中止卸载
+    if [ -d /run/systemd/system ]; then
+        systemctl disable ally-wakeup || :
+    else
+        chkconfig --del ally-wakeup || :
+    fi
+fi
 `))
 
 	rpm.AddPostun(EnvReplace(`
@@ -218,6 +233,9 @@ if [ $1 -eq 0 ]; then # 卸载
           /etc/systemd/system/ally-wakeup.service \
           /etc/systemd/system/multi-user.target.wants/ally-wakeup.service \
           /etc/init.d/ally-wakeup
+    if [ -d /run/systemd/system ]; then
+        systemctl daemon-reload
+    fi
 fi
 `))
 

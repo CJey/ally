@@ -1,12 +1,14 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 
 	pb "github.com/cjey/ally/proto"
@@ -24,7 +26,7 @@ func LookPath(bin string) (string, error) {
 	if val, err := exec.LookPath(bin); err != nil {
 		return "", fmt.Errorf("lookup the program path failed, %w", err)
 	} else if val, err := filepath.Abs(val); err != nil {
-		return "", fmt.Errorf("get the proram fullpath failed, %w", err)
+		return "", fmt.Errorf("get the program fullpath failed, %w", err)
 	} else {
 		bin = val
 	}
@@ -39,17 +41,13 @@ func LookPath(bin string) (string, error) {
 }
 
 func SortAddress(addrs []*pb.Address) {
-	sort.Slice(addrs, func(i, j int) bool {
-		if addrs[i].Created < addrs[j].Created {
-			return true
-		}
-		if addrs[i].Updated > addrs[j].Updated {
-			return true
-		}
-		if addrs[i].Refs > addrs[j].Refs {
-			return true
-		}
-		return addrs[i].Address < addrs[j].Address
+	slices.SortFunc(addrs, func(a, b *pb.Address) int {
+		return cmp.Or(
+			cmp.Compare(a.Created, b.Created),
+			cmp.Compare(b.Updated, a.Updated),
+			cmp.Compare(b.Refs, a.Refs),
+			cmp.Compare(a.Address, b.Address),
+		)
 	})
 }
 
